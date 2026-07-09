@@ -1,0 +1,845 @@
+SEEKR
+Master Roadmap & Team Execution Plan
+How to Build the MVP, Start to Finish, as 4 People Working in Parallel
+
+Purpose of this document. The Ground Source of Truth (Ch. 1–20) says
+what SEEKR is. This document says who builds what, in what order, and
+how the four of you stay unblocked from each other for five weeks. Read this
+first on Day 1; use it every Monday and Friday as the standup script.
+
+ET AI Hackathon 2026 — Problem Statement #8
+AI for Industrial Knowledge Intelligence: Unified Asset & Operations Brain
+
+Team Insomniacs
+Bhavishy Agrawal
+Anshika Jha
+
+· Suparn Agrawal
+· Anarghya Das
+
+July 2026
+Companion document to SEEKR MVP — Ground Source of Truth. Derived from and consistent with
+Ch. 20 (Future Enterprise Roadmap is a different chapter — this is the build roadmap, not the
+post-hackathon one).
+
+Contents
+1 How We Approach This Build
+1.1 The one idea that makes 4 people × 5 weeks work . . . . . . . . . . . . . . . . . .
+1.2 Five working principles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.3 Definition of done for the whole project . . . . . . . . . . . . . . . . . . . . . . . .
+
+5
+5
+5
+6
+
+2 Team & Track Ownership
+2.1 Why four tracks, not four features . . . . . . . . . . . . . . . . . . . . . . . . . . .
+2.2 What each track is explicitly NOT responsible for . . . . . . . . . . . . . . . . . . .
+2.3 Weekly rhythm . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+7
+7
+8
+8
+
+3 Contracts to Freeze in Week 1
+3.1 Contract 1 — The REST/SSE/WS API surface . . . . . . . . . . . . . . . . . . . .
+3.2 Contract 2 — The shared graph-access function . . . . . . . . . . . . . . . . . . . .
+3.3 Contract 3 — The streamed event schema . . . . . . . . . . . . . . . . . . . . . . .
+
+9
+9
+9
+9
+
+4 Phase-by-Phase Roadmap (Weeks 1–5)
+4.1 How to read this chapter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.2 Week 1 — Foundations (maximum parallelism) . . . . . . . . . . . . . . . . . . . .
+4.3 Week 2 — Core Pipelines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.4 Week 3 — Advanced Retrieval + Compositional Reasoning . . . . . . . . . . . . .
+4.5 Week 4 — Integration Hardening . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.6 Week 5 — Hardening, Evaluation, Rehearsal . . . . . . . . . . . . . . . . . . . . . .
+
+11
+11
+11
+12
+12
+13
+13
+
+5 Cross-Track Dependency Map
+15
+5.1 Who is waiting on whom, and when it resolves . . . . . . . . . . . . . . . . . . . . 15
+5.2 The two seams every track is built against . . . . . . . . . . . . . . . . . . . . . . . 15
+6 Risk Register & Fallback Ownership
+17
+6.1 Principle . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+6.2 Rehearse the fallback, don’t just code it . . . . . . . . . . . . . . . . . . . . . . . . 19
+7 Definition of Done, Per Subsystem
+
+20
+
+8 Parking Lot — What We Are Deliberately Not Building
+
+22
+
+2
+
+List of Tables
+2.1
+2.2
+
+Track ownership. Names are a suggested default split; swap freely, but keep exactly
+one clear owner per track so there is always one throat to choke per deliverable. . .
+Negative scope per track — as important as the positive scope for keeping tracks
+from colliding . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+7
+8
+
+3.1
+
+The three Week-1 contracts and who depends on each . . . . . . . . . . . . . . . . 10
+
+4.1
+4.2
+4.3
+4.4
+4.5
+
+Week 1 per-track deliverables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Week 2 per-track deliverables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Week 3 per-track deliverables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Week 4 per-track deliverables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Week 5 activities — no longer split by track, the whole team converges . . . . . . .
+
+5.1
+
+Cross-track dependency map, in dependency order . . . . . . . . . . . . . . . . . . 15
+
+6.1
+
+Risk register with explicit fallback ownership . . . . . . . . . . . . . . . . . . . . . 18
+
+7.1
+
+Acceptance targets — the numbers Week 5 must actually measure, not estimate . . 21
+
+3
+
+11
+12
+13
+13
+14
+
+List of Figures
+4.1
+
+The five-week arc — each week’s sync point is the entry condition for the next
+
+4
+
+. . 11
+
+Chapter 1
+How We Approach This Build
+1.1
+
+The one idea that makes 4 people × 5 weeks work
+
+Core strategy
+Define three contracts by the end of Week 1 — the API surface, the shared graph-access
+function signature, and the streaming event schema — and then let all four tracks build against
+those contracts independently. Nobody waits for anybody else’s internal implementation to
+be finished; everybody waits only for the shape of the interface, which is fixed on Day 5 and
+never renegotiated except at a sync point.
+If this project fails, it will not fail because someone wrote bad code. It will fail because two people
+silently assumed different shapes for the same interface and only discovered it in Week 4. Every
+rule in this chapter exists to prevent that one failure mode.
+
+1.2
+
+Five working principles
+
+1. Contracts before code. The request/response shape of every endpoint (Chapter 3) is written
+down and agreed before anyone implements the logic behind it. A contract change after Week
+1 requires all four people to acknowledge it in the same conversation, not a silent Slack message
+to one person.
+2. Build against a stub, not a wait. If Track C needs Track B’s retrieval function before it
+exists, Track C writes a stub that returns fixture data in the exact shape of the real contract,
+and swaps it out later without changing its own code. This is how Weeks 1–2 achieve full
+parallelism.
+3. Vertical slices over horizontal layers. Each week ends with something that actually runs
+end-to-end, however roughly (Chapter 4), rather than four people each perfecting one layer in
+isolation until Week 5.
+4. Freeze scope, not quality. Week 5 adds zero new features (Section 4.6). Anything not
+named in the Ground Source of Truth chapters 3–18 is written into the roadmap-appendix
+parking lot (Chapter 8) and not built this cycle.
+5. Every stage degrades, nothing crashes. Each track owns building the fallback for its own
+stage (Chapter 6) as a first-class deliverable, not a stretch goal bolted on in Week 5.
+
+5
+
+6
+
+1.3
+
+SEEKR Master Roadmap
+
+Definition of done for the whole project
+
+The project is done when the exact demo script in Ground Source of Truth §18.2 runs, unrehearsedbut-rehearsable, end to end, against the real 100–300 document corpus, in under eight minutes,
+with every number quoted on stage pulled live from the evaluation dashboard. Everything in this
+roadmap points at that one sentence.
+
+Chapter 2
+Team & Track Ownership
+2.1
+
+Why four tracks, not four features
+
+The team splits along the system’s own architectural seams (Fabric API’s internal layers and the
+two surrounding processes), not along arbitrary feature slices, because the seams are exactly where
+the contracts in Chapter 3 already isolate one person’s work from another’s.
+Track
+
+Suggested owner
+
+Owns
+
+A — Data & Ingestion
+
+Bhavishy Agrawal
+
+B — Retrieval & Knowledge Graph
+
+Suparn Agrawal
+
+C — Agents & Reasoning
+
+Anshika Jha
+
+D — Frontend, Auth & Infra
+
+Anarghya Das
+
+Postgres/Neo4j schemas,
+Docling pipeline, entity+spec
+extraction,
+entity resolution, P&ID
+VLM path, knowledgewrite stage
+Neo4j/Qdrant
+setup,
+query
+classification,
+context assembly, seed
+expansion,
+adaptive
+traversal,
+structural
+enrichment, fusion/rerank, citation resolution
+LangGraph
+supervisor, SEEKR Asset
+(incl. CGFR), SEEKR
+Diagnose,
+SEEKR
+Comply, model-routing
+for agent-side calls
+Next.js frontend, graph
+explorer, streaming UI,
+auth/RBAC,
+Docker
+Compose, deployment,
+demo rehearsal logistics
+
+Table 2.1: Track ownership. Names are a suggested default split; swap freely, but keep exactly one clear
+owner per track so there is always one throat to choke per deliverable.
+
+7
+
+8
+
+SEEKR Master Roadmap
+
+One owner does not mean one worker. Any track owner can and should pull in another
+team member for a day when their own track is blocked on a sync point (e.g. Track D can
+help Track A test ingestion edge cases while waiting for Track B’s real retrieval function in
+Week 2). Ownership means accountable for the deliverable existing by the sync date, not the
+only person allowed to touch the code.
+
+2.2
+
+What each track is explicitly NOT responsible for
+
+Track
+
+Explicitly out of this track’s scope
+
+A
+
+Anything query-time (retrieval, generation, agents) — Track A’s world ends the moment
+a fact is written to Postgres/Neo4j/Qdrant.
+Agent orchestration and prompts — Track B exposes retrieve() and the graph traversal
+internals; it does not decide when an agent is invoked.
+Chunking, fusion weights, or traversal internals — Track C calls context_graph_query
+and retrieve() as black boxes and never reaches into Neo4j/Qdrant directly.
+Any business logic — the frontend renders whatever Fabric API streams; it does not
+compute confidence scores, fusion weights, or agent routing decisions.
+
+B
+C
+D
+
+Table 2.2: Negative scope per track — as important as the positive scope for keeping tracks from colliding
+
+2.3
+
+Weekly rhythm
+
+• Monday (start of week): 20-minute standup against this document — each track states this
+week’s deliverable from Chapter 4 and any dependency it is waiting on.
+• Wednesday (midweek check): Async check-in; anyone blocked flags it immediately rather
+than at Friday sync, since a 2-day slip on one track’s contract is a 5-week-project risk.
+• Friday (sync point): The specific, testable sync-point criterion for that week (Chapter 4)
+is demonstrated live by whoever owns it — not described, demonstrated. If it cannot be
+demonstrated, it is not done, regardless of how much code exists.
+
+Chapter 3
+Contracts to Freeze in Week 1
+Why this chapter exists
+Everything in Chapter 4 after Week 1 assumes these three shapes are already fixed. If any of
+these three change after the Week 1 sync point, treat it as a whole-team event, not a one-line
+Slack message — every track that consumes the changed contract needs to re-confirm it still
+works for them.
+
+3.1
+
+Contract 1 — The REST/SSE/WS API surface
+
+The complete endpoint list in Ground Source of Truth Ch. 12 (/api/documents, /api/query,
+/api/entities/*, /api/agents/*, /ws/copilot/{session_id}) and the SSE event schema (token,
+citation, agent_trigger, done, plus CGFR’s agent_step sub-events) are written down verbatim and shared before anyone writes a handler body. Owner: Track D drafts it from the Ground
+Source of Truth, Track B and C confirm it covers everything they need to emit.
+
+3.2
+
+Contract 2 — The shared graph-access function
+
+[language=Python, caption=The one function every retrieval consumer and every agent worker
+calls — this signature does not change after Week 1] async def contextg raphq uery(tag : str, query :
+str, depth : str = ”auto”, includea nalogues : bool = F alse, )− > GraphContext : ”””′ shallow′ :
+f ixed − depthtraversal, maxd epth = 2( 100ms) − −f astpath.′ deep′ : f ullf ive − phasecontext −
+awarepipeline, maxd epth = 5( 300−500ms).′ auto′ : shallowf orAsset(history)/Comply, deepf orDiagnose.”””
+Owner: Track B owns what happens inside every mode; Track C only ever calls this function
+and never reaches into Neo4j directly. Track C stubs this function’s return shape in Week 1–2
+and swaps in Track B’s real implementation in Week 3 without changing a single call site.
+
+3.3
+
+Contract 3 — The streamed event schema
+
+[language=json, caption=Event shapes every consumer of the streaming API is built against
+from Week 1] event: token data: "text": "..." event: citation data: "doci d” : ”...”, ”passagei d” :
+”...”, ”page” : 0event : agentt riggerdata : ”worker” : ”asset|diagnose|comply”, ”jobi d” : ”...”event :
+agents tepdata : ”step” : ”constraint|candidate|compatibilityc heck|recommendation|plan|hypothesis|critique”,
+donedata : ”answeri d” : ”...” Owner: Track D builds the frontend against mocked events matching this shape starting Week 1; Track B and Track C emit real events matching it starting Week
+2–3.
+9
+
+10
+
+SEEKR Master Roadmap
+
+Contract
+
+Frozen by
+
+Consumed by
+
+API surface (§3.1)
+context_graph_query signature (§3.2)
+
+End of Week 1
+End of Week 1
+
+Streamed event schema (§3.3)
+
+End of Week 1
+
+All four tracks
+Track C (caller), Track B
+(implementer)
+Track D (renderer), Track
+B/C (emitters)
+
+Table 3.1: The three Week-1 contracts and who depends on each
+
+Chapter 4
+Phase-by-Phase Roadmap (Weeks 1–5)
+4.1
+
+How to read this chapter
+
+Each week has: a table of per-track deliverables, an explicit sync-point criterion (the one thing
+that must be demonstrable live, not described), and a short note on what each track is unblocked
+to start because of that sync point. The five weeks trace one continuous arc: skeleton → core
+pipelines → advanced reasoning → integration hardening → freeze and rehearse.
+Week 1
+Foundations
+
+Week 2
+Core
+Pipelines
+
+Week 3
+Advanced
+Reasoning
+
+Week 4
+Integration
+Hardening
+
+Week 5
+Freeze &
+Rehearse
+
+Figure 4.1: The five-week arc — each week’s sync point is the entry condition for the next
+
+4.2
+
+Week 1 — Foundations (maximum parallelism)
+
+The goal of Week 1 is not features; it is unblocking. Every track can start on Day 1 with zero
+dependency on another track’s code, only on the contracts in Chapter 3.
+Track
+
+Week 1 deliverable
+
+A
+
+Postgres schema live (document_registry, facts, entity_registry, entity_aliases,
+users, audit_log) with migrations 001/002 applied; Docling integration skeleton; the
+upload-to-registry write path working end to end.
+Neo4j + Qdrant containers up; ontology node/edge model coded (labels, relational and
+spec-type relationship types); chunking policy implemented (structure-aware, 512-token
+cap); a basic vector pathway with no fusion yet.
+LangGraph supervisor skeleton routing to three stub workers; fast-tier and frontier-tier
+model SDK wrappers callable end to end (even against a placeholder prompt).
+Full Docker Compose stack (all 4 deployable units) boots together; Next.js scaffold with
+/login; JWT issuance and require_role guard; 4 seeded demo accounts.
+
+B
+C
+D
+
+Table 4.1: Week 1 per-track deliverables
+
+Sync point — end of Week 1
+docker compose up brings up all four services together, and a file uploaded via POST /api/documents
+lands as a document_registry row. The three contracts in Chapter 3 are frozen and written
+
+11
+
+12
+
+SEEKR Master Roadmap
+
+down somewhere every team member can see them.
+
+4.3
+
+Week 2 — Core Pipelines
+
+With contracts frozen, every track now builds its first real, non-stubbed pipeline segment.
+
+Track
+
+Week 2 deliverable
+
+A
+
+Fast-tier structured extraction live against the extended predicate set (relational + spectype); 2.5-stage entity resolution (exact/fuzzy/embedding); Neo4j MERGE write path; a
+P&ID VLM stub returning placeholder adjacency.
+Query classification (regex/keyword pre-filter + LLM fallback); assemble_context implemented, including the focused_tag plumbing that Track D exposes from the graph
+explorer; Strategy A (direct) and Strategy B (embedding-nearest) seed expansion.
+SEEKR Asset capability 1–2 (history/QA, forward-risk framing) working end to end
+against Track B’s early/stub graph data; SEEKR Diagnose’s plan→execute skeleton;
+SEEKR Comply’s gap-check Cypher query.
+Graph Explorer (Cytoscape.js) with node click opening the side panel; CopilotChat SSE
+client wired against Track B’s early output or mocked events; route guards wired to the
+real endpoints (not just /login).
+
+B
+C
+D
+
+Table 4.2: Week 2 per-track deliverables
+
+Sync point — end of Week 2
+A ∼10-document fixture corpus ingests end to end (upload → parse → extract → resolve
+→ graph + vectors written), and the very first real Copilot query returns a citation-tagged
+answer — however rough the citations or however narrow the graph context.
+
+Highest-risk dependency, check explicitly at this sync point. Track C’s CGFR quality
+in Week 3 depends entirely on Track A having populated hasSpec/fitsRange/ etc. on the
+spare-parts catalog. If this is not visibly true by the end of Week 2, escalate it immediately
+— do not wait for the Week 3 sync point to discover CGFR has nothing to reason over.
+
+4.4
+
+Week 3 — Advanced Retrieval + Compositional Reasoning
+
+This is the week the system’s actual differentiators get built: adaptive traversal and CGFR.
+
+CHAPTER 4. PHASE-BY-PHASE ROADMAP (WEEKS 1–5)
+
+13
+
+Track
+
+Week 3 deliverable
+
+A
+
+Full 100–300 document corpus ingested; alias table matured from real documents;
+contradicting-fact and dedup edge cases handled per the fact/trust model.
+Adaptive traversal (best-first, relevance-decayed, node-budget bounded); structural enrichment (multi-seed shortest paths + degree-based hub detection); fusion weights per
+query type; local cross-encoder re-rank; citation-resolution regeneration loop.
+CGFR tools (get_entity_specs, find_by_type, compare_specs) and the full four-step
+chain (Constraint Extraction → Candidate Gathering → Compatibility Filtering → Justified Selection) wired inside SEEKR Asset, calling Track B’s real retrieve() and
+Track A’s real spec-fact coverage.
+ReasoningOverlay with Replay control; the ComparisonTable component; the compliance view; a mobile-responsive pass.
+
+B
+C
+
+D
+
+Table 4.3: Week 3 per-track deliverables
+
+Sync point — end of Week 3
+The first end-to-end CGFR answer — “which funnel should I use for pipe P-301?” — renders
+in the real UI with a real, data-backed comparison table, not mocked data.
+
+4.5
+
+Week 4 — Integration Hardening
+
+Every stubbed error path and every stubbed fallback from Weeks 1–3 becomes real. This is the
+week that turns “it works on the happy path” into “it survives a live demo.”
+Track
+
+Week 4 deliverable
+
+A
+
+Ch. 8-style error/degradation paths implemented for ingestion (parse_failed, retryonce extraction, unresolved-mention logging); audit_log writes from the ingestion side.
+Shallow↔full traversal mode switch tuned against the latency targets (Ground Source of
+Truth ??); a performance pass against the phase-by-phase budget table.
+Autonomy-tier wiring (Tier-2 confirm/dismiss, coordinated with Track D);
+max_iterations caps enforced on all three workers; sequence-numbered replay
+logging.
+Full API surface wired end to end (not just query/entities); both SSE and WS transports
+live; auth edge cases (expired token mid-stream); the uniform error envelope on every
+endpoint.
+
+B
+C
+D
+
+Table 4.4: Week 4 per-track deliverables
+
+Sync point — end of Week 4
+The full Playwright/Cypress end-to-end script passes, and measured latency is checked against
+the Chapter 4 §4.5 targets end to end, not just per-component.
+
+4.6
+
+Week 5 — Hardening, Evaluation, Rehearsal
+
+No new features this week. If a team member finds themselves wanting to add anything
+not already named in Ground Source of Truth Ch. 3–18, it goes into Chapter 8, not into the
+
+14
+
+SEEKR Master Roadmap
+
+codebase. Week 5 is fixes, evaluation, and rehearsal only.
+
+All four tracks, converged
+
+Activity
+
+Evaluation
+
+Build the acceptance-target test sets (retrieval precision set, citation spot-check set, CGFR test set, compliance gap set); split
+across all four people; cross-review each other’s correct/incorrect
+judgements.
+Full-corpus bug bash; deliberately trigger each of the three fallback paths (P&ID pre-load, structural-enrichment drop, CGFR
+zero-candidate) at least once and confirm each degrades gracefully instead of crashing.
+Full demo script rehearsed end to end at least three times against
+the real demo corpus, timed with a stopwatch; every team member able to deliver every speaking point, with the compositionalreasoning beat rehearsed at least once more given it is the newest,
+most judge-differentiating part of the script.
+Final full-corpus re-ingestion; final latency pass; scope frozen —
+fixes only from this point forward.
+
+Bug bash
+
+Rehearsal
+
+Freeze
+
+Table 4.5: Week 5 activities — no longer split by track, the whole team converges
+
+Final acceptance criterion
+Every number the team plans to say out loud to a judge has actually been measured on the
+actual demo corpus, by a team member, this week — not estimated, not carried over from a
+smaller test, not asserted from memory.
+
+Chapter 5
+Cross-Track Dependency Map
+5.1
+
+Who is waiting on whom, and when it resolves
+
+Dependency
+
+Detail
+
+Resolves by
+
+C→B
+
+SEEKR
+Asset/Diagnose/Comply
+all call context_graph_query and
+retrieve(); lock the signature Week
+1, stub it Week 1–2, swap in the
+real implementation Week 3 without
+changing the call sites.
+Frontend’s streaming components
+are built against the SSE/WS event
+schema (Chapter 3, Contract 3); lock
+it Week 1 so Track D can build against
+mocked events while B/C assemble the
+real pipeline.
+CGFR’s quality depends entirely on
+Track A’s spec-predicate extraction
+coverage on the spare-parts catalog;
+this is the single highest-risk cross-track
+dependency — checked explicitly at the
+Week 2 sync point (Section 4.3).
+Adaptive traversal and seed expansion need real graph data, not fixtureonly data, to tune relevance thresholds
+meaningfully.
+Tier-2 confirm/dismiss UI wiring needs
+the autonomy-tier contract from Track
+C (what a “proposed” action payload
+looks like).
+
+Week 3
+
+D → B/C
+
+C→A
+
+B→A
+
+D→C
+
+Week 1 (contract), Week 3 (real events)
+
+Week 2 (checked), Week 3 (consumed)
+
+Week 3 (full corpus from A)
+
+Week 4
+
+Table 5.1: Cross-track dependency map, in dependency order
+
+5.2
+
+The two seams every track is built against
+
+15
+
+16
+
+SEEKR Master Roadmap
+
+Why only two seams matter
+The context_graph_query signature and the streamed-event structure are the two points
+every other component is built against. Instability in either has system-wide impact — treat
+any proposed change to either after Week 1 as a whole-team decision, not a one-track decision.
+
+Chapter 6
+Risk Register & Fallback Ownership
+6.1
+
+Principle
+
+Every pipeline stage has a defined fallback, and that fallback is owned by the same track that
+owns the stage — it is not a Week-5 afterthought, it is part of that track’s Week 1–4 deliverable.
+17
+
+18
+
+SEEKR Master Roadmap
+
+Risk
+
+Fallback
+Owning
+Built by
+track
+
+P&ID live VLM extraction slow/unreliable
+
+Fall A Week 4
+back
+to
+2–
+3
+preprocessed
+drawings
+with
+graph
+edges
+preloaded
+via
+a
+seed
+script
+DropB Week 4
+the
+phase,
+proceed
+on
+adaptivetraversal
+results
+alone
+Confirm
+A Week 3–4
+the +
+demoC
+corpus’s
+seeded
+spareparts
+catalog
+in
+advance;
+if
+it
+happens
+live
+anyway,
+the
+explicit
+“no
+
+Structural enrichment exceeds its latency budget
+
+CGFR candidate gathering finds zero candidates on the live corpus
+
+CHAPTER 6. RISK REGISTER & FALLBACK OWNERSHIP
+
+6.2
+
+19
+
+Rehearse the fallback, don’t just code it
+
+A fallback path that has never actually been triggered on purpose is not a tested fallback —
+it is an assumption. Week 5’s bug bash (Section 4.6) requires each of the three major fallback
+paths above to be deliberately triggered at least once and confirmed to degrade gracefully, not
+merely reviewed in code.
+
+Chapter 7
+Definition of Done, Per Subsystem
+
+20
+
+CHAPTER 7. DEFINITION OF DONE, PER SUBSYSTEM
+
+21
+
+Metric
+
+T
+
+Knowledge coverage
+
+≥
+90
+of
+de
+eq
+m
+ta
+ha
+≥
+1
+lin
+fa
+≥
+90
+≥
+80
+≥
+85
+≥
+4/
+co
+re
+or
+co
+re
+fla
+un
+re
+so
+ab
+≥
+4/
+fla
+≤
+1
+fa
+po
+itiv
+
+Citation accuracy (20 spot-checked answers)
+Retrieval precision@5 (15–20 hand-written queries, incl. ≥ 3 implicit-context and ≥ 2 cross-domain-bridge)
+Agent success rate (scripted invocations)
+Compositional accuracy (5–8 hand-built CGFR queries)
+
+Compliance detection (5 deliberately seeded gaps)
+
+Table 7.1: Acceptance targets — the numbers Week 5 must actually measure, not estimate
+
+Not in scope for acceptance testing: load testing beyond the P95 latency harness, security penetration testing, multi-region failover.
+
+Chapter 8
+Parking Lot — What We Are Deliberately Not Building
+The rule
+If, while building any part of this roadmap, a team member wants to add a service, database,
+agent, or framework not already named in the Ground Source of Truth (Ch. 3–18), the correct
+action is to write it here and keep building the MVP as scoped — not to build it now.
+• Kafka, Kubernetes/K3s, a bitemporal claim store, ontology versioning, a typed Specification
+node label.
+• A DuckDB/ClickHouse analytical mirror; RT-DETR+SAM2 line tracing for P&IDs.
+• Three-tier autonomy with an OPA policy engine; Keycloak/OIDC/mTLS; OT/historian integration.
+• Offline-first PWA with CRDT sync; Microsoft GraphRAG-style offline community summarisation; Neo4j GDS Enterprise.
+• Fine-tuned models; a published-benchmark-style evaluation with inter-annotator agreement
+studies.
+• A dedicated material-compatibility lookup database; a company-specific selectionRule relationship type.
+• A fourth agent worker; a LiteLLM abstraction layer or a third/fourth model tier.
+If the project continues past the hackathon, Ground Source of Truth Ch. 20 (Future Enterprise
+Roadmap) gives the trigger condition and recommended sequencing for each of these — that
+chapter, not this one, is where post-MVP investment gets planned.
+
+22
+
+

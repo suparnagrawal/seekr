@@ -1,0 +1,126 @@
+import structlog
+from pathlib import Path
+from typing import Any
+import importlib.metadata
+from dataclasses import dataclass
+
+# We will import Docling components dynamically inside methods to avoid massive import penalties 
+# at the module level for parts of the app that don't need it.
+
+from backend.shared.exceptions import IngestionPipelineError
+
+logger = structlog.get_logger(__name__)
+
+def get_docling_version() -> str:
+    try:
+        return importlib.metadata.version("docling")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+@dataclass(slots=True)
+class ParsedDocument:
+    """Standardized output structure for document parsing."""
+    markdown: str
+    metadata: dict[str, Any]
+    page_count: int
+    docling_document: Any | None  # The in-memory DoclingDocument
+
+class ParsingService:
+    """
+    Wraps the Docling DocumentConverter for robust document extraction.
+    Handles OCR fallbacks and structured Markdown generation.
+    """
+    
+    def __init__(self, parser_config: dict[str, Any] | None = None):
+        """
+        Initializes the service with injectable configuration.
+        """
+        self._converter = None
+        self._config = parser_config or {
+            "do_ocr": True,
+            "do_table_structure": True,
+            "ocr_provider": "easyocr" # Prepare for future selection
+        }
+        self.docling_version = get_docling_version()
+        
+    def _get_converter(self):
+        """
+        Lazy-loads the DocumentConverter to avoid huge startup times
+        unless this service is actually used.
+        """
+        if self._converter is None:
+            from docling.document_converter import DocumentConverter, PdfFormatOption
+            from docling.datamodel.base_models import InputFormat
+            from docling.datamodel.pipeline_options import PdfPipelineOptions
+            
+            pipeline_options = PdfPipelineOptions()
+            pipeline_options.do_ocr = self._config.get("do_ocr", True)
+            pipeline_options.do_table_structure = self._config.get("do_table_structure", True)
+            
+            self._converter = DocumentConverter(
+                allowed_formats=[InputFormat.PDF],
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+                }
+            )
+            logger.info("Docling DocumentConverter initialized", config=self._config, docling_version=self.docling_version)
+            
+        return self._converter
+        
+    def parse_document(self, file_path: str) -> ParsedDocument:
+        """
+        Parses a document using Docling.
+        
+        Returns:
+            ParsedDocument containing markdown, metadata, and page_count.
+            
+        Raises:
+            IngestionPipelineError: If parsing fails.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise IngestionPipelineError(f"File not found: {file_path}", stage="Docling Initial Load")
+            
+        logger.info("Starting Docling extraction", file_path=file_path)
+        
+        try:
+            converter = self._get_converter()
+            # Convert the document
+            result = converter.convert(path)
+            
+            # Export to Markdown
+            markdown_content = result.document.export_to_markdown()
+            
+            # Gather metadata (we extract much more now for artifact saving)
+            page_count = len(result.document.pages)
+            
+            # Keep application metadata lean. The rich document lives in memory.
+            metadata = {
+                "origin": result.input.file.name,
+                "file_size": result.input.file.stat().st_size,
+                "docling_version": self.docling_version,
+                "page_count": page_count,
+                "parser_config": self._config
+            }
+            
+            logger.info("Docling extraction completed", file_path=file_path, page_count=page_count)
+            return ParsedDocument(
+                markdown=markdown_content,
+                metadata=metadata,
+                page_count=page_count,
+                docling_document=result.document
+            )
+            
+        except Exception as e:
+            logger.error(
+                "Docling parsing failed", 
+                file_path=file_path, 
+                exception_type=type(e).__name__, 
+                error=str(e),
+                exc_info=True
+            )
+            raise IngestionPipelineError(message=str(e), stage="Docling Conversion")
+
+def get_parsing_service() -> ParsingService:
+    """Dependency provider for ParsingService."""
+    return ParsingService()

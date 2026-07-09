@@ -1,0 +1,6759 @@
+SEEKR
+Ground Source of Truth — Engineering Design Document
+MVP Edition — Unified Implementation Handbook for the 4-Person, 5-Week Build
+
+Scope statement. This is the single, frozen, ground-truth architecture for
+SEEKR. Every idea from prior architecture notes and addenda is
+integrated directly into the chapter it belongs to, so the whole team builds
+from one coherent description. If it isn’t named in this document, it isn’t
+part of the MVP.
+
+ET AI Hackathon 2026 — Problem Statement #8
+AI for Industrial Knowledge Intelligence: Unified Asset & Operations Brain
+
+Team Insomniacs
+Bhavishy Agrawal
+Anshika Jha
+
+· Suparn Agrawal
+· Anarghya Das
+
+July 2026
+Version 2.1 — Ground Source of Truth (supersedes v1.0 Engineering Handbook, v2.0, and all standalone
+retrieval / reasoning addenda)
+
+Document Control
+
+Field
+
+Value
+
+Document title
+
+SEEKR MVP — Ground Source of Truth (Unified Engineering Design
+Document)
+SEEKR MVP — Engineering Design Document v1.0 ; v2.0 ; the standalone Intelligent Retrieval Architecture and Compositional Reasoning
+addenda
+Frozen ground truth; the only document a team member should build
+from
+All four team members; judges (architecture and demo chapters)
+Bhavishy Agrawal, Suparn Agrawal, Anshika Jha, Anarghya Das
+5 weeks, single hackathon sprint
+Enterprise scalability, Kubernetes, microservices, millions of users, research novelty, fine-tuned models
+Innovation 25% / Business Impact 25% / Technical Excellence 20% /
+Scalability 15% / UX 15%
+
+Supersedes
+Status
+Audience
+Team
+Timeline
+Non-goals
+Primary judging weight
+
+Table 1: Document control summary
+
+How to use this document
+This is the complete, self-contained description of SEEKR as it will actually be built, organised
+as one continuous architecture rather than a base document plus patches. If a chapter here appears
+to conflict with anything a team member remembers from an earlier draft, this document wins.
+Where a team member wants to add a service, database, agent, or framework not already named
+in Chapter 5 through Chapter 18, the correct action is to record it in Chapter 19 and keep building
+the MVP as specified here — not to build it now. Figure 5.1 on the next few pages is the single
+picture that explains the whole system; every later chapter is detail on one box of that picture.
+
+i
+
+Contents
+
+Document Control
+
+i
+
+1 Problem Overview
+1.1 The problem in one paragraph . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.2 Root causes SEEKR addresses . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.3 Why a knowledge graph, not just a chatbot . . . . . . . . . . . . . . . . . . . . . .
+1.4 Scope boundary for this document . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.5 Stakeholders and their concerns . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+1
+1
+1
+1
+2
+2
+
+2 Product Vision
+2.1 Vision statement . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+2.2 The five pillars, and what they mean at implementation level . . . . . . . . . . . .
+2.3 Why SEEKR differs from conventional RAG . . . . . . . . . . . . . . . . . . . .
+2.4 Product narrative . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+2.5 Design principles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+2.6 What “done” looks like for the MVP . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+3
+3
+4
+4
+5
+5
+6
+
+3 Functional Requirements
+7
+3.1 Requirement notation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+3.2 Ingestion & Extraction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+3.3 Knowledge Graph & Facts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+3.4 Retrieval & Copilot (SEEKR Ask) . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+3.5 Agents . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+3.6 Frontend . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+3.7 Auth & Audit . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+4 Non-functional Requirements
+4.1 Scale envelope (deliberately small) . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.2 Latency targets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.3 Reliability & degradation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.4 Explainability & trust . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.5 Security (demo-appropriate, not enterprise) . . . . . . . . . . . . . . . . . . . . . .
+4.6 Maintainability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.7 Portability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.8 Usability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+12
+12
+13
+14
+14
+14
+14
+15
+15
+
+5 System Architecture
+5.1 The whole system in one diagram . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.2 Key technology decisions at a glance . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.3 Three-layer architecture . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.4 Layer 1: Presentation (Next.js) . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+16
+16
+17
+17
+18
+
+ii
+
+CONTENTS
+
+iii
+
+5.5 Layer 2: Fabric + Retrieval + Agents (one FastAPI app) . . . . . . . . . . . . . . .
+5.6 Layer 3: Ingestion + Extraction (background worker) . . . . . . . . . . . . . . . . .
+5.7 Data stores . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.8 Request lifecycle: Copilot query . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.9 Component interaction summary . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.10 Demo corpus target . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+18
+19
+19
+19
+21
+21
+
+6 Data Flow
+6.1 End-to-end pipeline . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.2 Stage 1: Document Upload . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.3 Stage 2: Parsing (Docling) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.4 Stage 3: Entity & Specification Extraction . . . . . . . . . . . . . . . . . . . . . . .
+6.5 Stage 4: Entity Resolution . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.6 Stage 5: Knowledge Graph . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.7 Stage 6: Vector DB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.8 Stage 7: Context-Aware Retrieval . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.9 Stage 8: Copilot . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.10 Stage 9: Agents (including Compositional Reasoning) . . . . . . . . . . . . . . . . .
+6.11 Stage 10: Frontend . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.12 Pipeline-wide error handling policy . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+22
+22
+22
+23
+23
+24
+24
+25
+25
+25
+25
+25
+26
+
+7 Database Design
+7.1 Overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7.2 Entity-relationship overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7.3 Table: document_registry . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7.4 Table: facts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7.5 Table: entity_registry and entity_aliases . . . . . . . . . . . . . . . . . . . .
+7.6 Table: users . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7.7 Table: audit_log . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7.8 Lexical search . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7.9 Migrations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+27
+27
+27
+27
+28
+28
+29
+29
+30
+30
+
+8 Knowledge Graph
+8.1 Purpose and responsibilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.2 Ontology . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.2.1 Extended ontology for compositional reasoning . . . . . . . . . . . . . . . .
+8.3 Neo4j node and edge model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.4 Graph materialisation (write path) . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.5 Graph traversal (read path) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.5.1 Fixed-depth traversal (shallow mode) . . . . . . . . . . . . . . . . . . . . . .
+8.5.2 Adaptive, context-aware traversal (full mode) . . . . . . . . . . . . . . . . .
+8.6 Confidence model on the graph . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.7 Graph updates and refresh . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.8 Edge cases . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.9 Testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.10 Expected latency . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.11 Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8.12 Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+31
+31
+31
+32
+32
+33
+33
+33
+34
+34
+34
+35
+35
+35
+35
+35
+
+9 Retrieval
+9.1 Purpose and responsibilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.1.1 Why a fixed hop count was not enough . . . . . . . . . . . . . . . . . . . . .
+9.2 Chunking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+36
+36
+36
+37
+
+iv
+
+SEEKR Engineering Design Document
+
+9.3 Query classification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.4 Context Assembly . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.5 Seed Expansion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.6 Adaptive Traversal . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.7 Structural Enrichment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.8 Passage Synthesis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.9 Fusion weights . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.10 The three pathways . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.11 Merge and re-ranking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.12 Generation and citation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.13 Interfaces . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.14 Retained fast path: shallow traversal mode . . . . . . . . . . . . . . . . . . . . . .
+9.15 Edge cases . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.16 Testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.17 Performance budget . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.18 What this does NOT require . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.19 Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9.20 Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+37
+37
+38
+39
+40
+41
+42
+42
+42
+43
+43
+43
+43
+44
+44
+44
+45
+45
+
+10 AI Models
+10.1 Two-tier routing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.2 Why every model exists . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.3 Expected input/output per task . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.4 Prompt strategy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.5 JSON schema example: bulk extraction (extended) . . . . . . . . . . . . . . . . . .
+10.6 Does compositional reasoning need fine-tuning? . . . . . . . . . . . . . . . . . . . .
+10.7 Failure handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.8 Cost and latency management . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.9 Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.10Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+46
+46
+47
+47
+47
+48
+48
+49
+49
+49
+49
+
+11 Agent Design
+11.1 Pattern: LangGraph Supervisor → three workers . . . . . . . . . . . . . . . . . . .
+11.2 Table of workers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.3 Supervisor: responsibilities and decision flow . . . . . . . . . . . . . . . . . . . . . .
+11.4 Autonomy tiers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.5 SEEKR Asset . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.5.1 Four capabilities, one worker . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.5.2 Prompt strategy for capabilities 1–2 (QA/history) . . . . . . . . . . . . . .
+11.5.3 Tools . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.5.4 Compositional Reasoning: the Constraint-Gather-Filter-Reason (CGFR)
+pattern . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.5.5 Agent prompt addition for CGFR . . . . . . . . . . . . . . . . . . . . . . .
+11.5.6 Edge case handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.6 SEEKR Diagnose . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.7 SEEKR Comply . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.8 The enhanced context_graph_query tool . . . . . . . . . . . . . . . . . . . . . . .
+11.9 Prompts (representative) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.10Interfaces . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.11Logging . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.12Testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11.13Expected latency . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+50
+50
+51
+51
+52
+52
+52
+52
+52
+53
+55
+55
+55
+56
+56
+56
+57
+57
+57
+57
+
+CONTENTS
+
+v
+
+11.14Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 57
+11.15Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 58
+12 APIs
+12.1 Endpoint surface . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.2 Request/response examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.2.1 POST /api/documents . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.2.2 POST /api/query . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.2.3 GET /api/entities/{tag}/graph?depth=2 . . . . . . . . . . . . . . . . . . .
+12.2.4 POST /api/entities/{tag}/feedback . . . . . . . . . . . . . . . . . . . . . .
+12.2.5 POST /api/agents/diagnose . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.2.6 GET /api/agents/diagnose/{job_id} . . . . . . . . . . . . . . . . . . . . . .
+12.2.7 GET /api/agents/comply/gaps . . . . . . . . . . . . . . . . . . . . . . . . .
+12.2.8 POST /api/agents/asset/recommend (compositional reasoning) . . . . . . .
+12.3 Error format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.4 Streaming transport . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.5 Versioning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.6 Rate limiting and auth . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12.7 Testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+59
+59
+59
+59
+60
+60
+60
+60
+61
+61
+61
+61
+62
+62
+62
+62
+
+13 Frontend
+13.1 Graph-first navigation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.2 Page-by-page . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.3 Component hierarchy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.4 State management . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.5 Streaming UI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.6 Graph animations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.7 Replay Reasoning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.8 Compositional comparison tables . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.9 Compliance, made visual . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.10Mobile responsiveness . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.11Testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.12Expected latency . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.13Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13.14Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+63
+63
+64
+64
+65
+65
+65
+65
+65
+65
+66
+66
+66
+66
+66
+
+14 Authentication
+14.1 Purpose and scope . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14.2 Roles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14.3 JWT flow . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14.4 Permissions matrix . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14.5 Edge cases . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14.6 Testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14.7 Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14.8 Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+67
+67
+67
+67
+68
+68
+68
+68
+68
+
+15 Evaluation
+15.1 Philosophy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+15.2 Evaluation dashboard . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+15.3 Ground truth creation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+15.4 Manual evaluation process . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+15.5 Dashboard implementation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+15.6 Expected targets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+69
+69
+70
+70
+71
+71
+71
+
+vi
+
+SEEKR Engineering Design Document
+
+15.7 Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 71
+15.8 Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 71
+16 Testing
+16.1 Testing philosophy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+16.2 Unit testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+16.3 Integration testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+16.4 End-to-end (UI) testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+16.5 AI-specific testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+16.6 Test data . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+16.7 What is explicitly not tested . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+16.8 Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+72
+72
+72
+73
+73
+73
+73
+73
+74
+
+17 Deployment
+17.1 Target . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.2 Docker Compose services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.3 Folder structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.4 Environment variables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.5 Startup sequence . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.6 Configuration management . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.7 Observability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.8 Degradation plan for the demo . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.9 Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17.10Future extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+75
+75
+75
+76
+77
+77
+77
+77
+77
+78
+78
+
+18 Demo
+18.1 Why one continuous interaction . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+18.2 Complete demo script — “A Day in the Life” . . . . . . . . . . . . . . . . . . . . .
+18.3 Transitions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+18.4 Judge questions and expected answers . . . . . . . . . . . . . . . . . . . . . . . . .
+18.5 Failure recovery during the demo . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+18.6 Rehearsal plan . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+79
+79
+80
+80
+81
+82
+82
+
+19 Future Enterprise Roadmap
+19.1 Principle . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+19.2 MVP → enterprise upgrade path . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+19.3 Sequencing if the project continues past the hackathon . . . . . . . . . . . . . . . .
+19.4 Closing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+83
+83
+84
+85
+85
+
+Appendix: Decision Log
+
+86
+
+List of Tables
+1
+
+Document control summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+i
+
+1.1
+
+Stakeholder concerns and the chapters that satisfy them . . . . . . . . . . . . . . .
+
+2
+
+2.1
+2.2
+
+The five SEEKR pillars mapped to implementation . . . . . . . . . . . . . . . . .
+SEEKR’s four differentiators versus conventional RAG . . . . . . . . . . . . . . .
+
+4
+5
+
+3.1
+3.2
+3.3
+3.4
+3.5
+3.6
+
+Ingestion & extraction functional requirements . . . . . . . . . . . . . . . . . . . . 7
+Knowledge graph functional requirements . . . . . . . . . . . . . . . . . . . . . . . 8
+Retrieval and copilot functional requirements . . . . . . . . . . . . . . . . . . . . . 9
+Agent functional requirements . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+Frontend functional requirements . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+Auth and audit functional requirements . . . . . . . . . . . . . . . . . . . . . . . . 11
+
+4.1
+4.2
+
+Scale envelope . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+Latency targets, measured per Chapter 15 . . . . . . . . . . . . . . . . . . . . . . . 13
+
+5.1
+5.2
+5.3
+
+Key technology decisions at a glance . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+Data stores and their roles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+Component interaction summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+
+6.1
+
+Pipeline-wide error handling policy . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+
+8.1
+8.2
+
+Core entity types . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+Core and extended relationships . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 32
+
+9.1
+9.2
+9.3
+9.4
+9.5
+9.6
+9.7
+9.8
+
+Failure modes of a fixed-depth, query-only graph traversal . . . . . . . . . . . . . .
+Inputs to context assembly . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Key design decisions in adaptive traversal . . . . . . . . . . . . . . . . . . . . . . .
+When structural enrichment runs . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Query-type → pathway weight lookup table . . . . . . . . . . . . . . . . . . . . . .
+The three retrieval pathways . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Context-aware retrieval performance budget . . . . . . . . . . . . . . . . . . . . . .
+Deliberately excluded approaches, and their roadmap trigger . . . . . . . . . . . . .
+
+36
+37
+40
+41
+42
+42
+44
+44
+
+10.1 Task-to-model mapping . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10.2 Expected input/output shape per task . . . . . . . . . . . . . . . . . . . . . . . . .
+10.3 Zero-shot readiness of compositional reasoning capabilities . . . . . . . . . . . . . .
+10.4 Where fine-tuning would help post-MVP, and the MVP alternative used instead . .
+
+46
+47
+48
+49
+
+11.1 The three SEEKR workers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 51
+11.2 Two autonomy tiers, no policy-engine microservice . . . . . . . . . . . . . . . . . . 52
+11.3 CGFR edge case handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 55
+vii
+
+viii
+
+SEEKR Engineering Design Document
+
+13.1 Page-by-page breakdown . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 64
+14.1 The four seeded demo roles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 67
+14.2 Coarse RBAC permissions matrix . . . . . . . . . . . . . . . . . . . . . . . . . . . . 68
+15.1 Evaluation dashboard metrics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 70
+15.2 Expected evaluation targets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 71
+16.1 Unit test coverage by area . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 72
+17.1 Environment variables (.env) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 77
+18.1 Demo script with timing and speaking points . . . . . . . . . . . . . . . . . . . . . 80
+18.2 Anticipated judge questions and rehearsed answers . . . . . . . . . . . . . . . . . . 81
+18.3 Failure recovery playbook . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 82
+19.1 MVP to enterprise upgrade path . . . . . . . . . . . . . . . . . . . . . . . . . . . . 84
+19.2 Architectural decision log . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 87
+
+List of Figures
+5.1
+
+5.2
+5.3
+
+Master pipeline: the entire SEEKR system in one diagram. Top: ingestion (Docling parse → extraction → resolution → Neo4j/Qdrant/Postgres). Middle: a
+query is classified, its context assembled (query + chat history + focused graph
+node), and fanned out across adaptive graph traversal, vector, and lexical retrieval.
+Bottom: fused evidence feeds generation and, where relevant, an agent (including
+compositional CGFR reasoning), both landing back in the UI as a cited answer or
+a live graph update. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+Three-layer architecture, deployed as four Docker Compose service groups — unchanged by the context-aware retrieval and compositional reasoning capabilities . . 18
+Sequence diagram: Copilot query through context assembly, retrieval, generation,
+and optional agent follow-up (including compositional reasoning) — the same flow
+as Figure 5.1, shown as a timeline instead of a pipeline . . . . . . . . . . . . . . . . 20
+
+6.1
+
+End-to-end data flow — the same ten stages as Figure 5.1, laid out linearly . . . . 22
+
+7.1
+
+Postgres entity-relationship overview . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+
+11.1 Supervisor–worker agent architecture — unchanged shape; SEEKR Asset’s tool
+set is extended, no fourth worker is introduced . . . . . . . . . . . . . . . . . . . . 50
+11.2 The four-step Constraint-Gather-Filter-Reason (CGFR) pattern . . . . . . . . . . . 54
+13.1 Graph-first navigation loop, including the focused_tag feedback into retrieval . . . 63
+
+ix
+
+Chapter 1
+Problem Overview
+1.1
+
+The problem in one paragraph
+
+Asset-intensive industrial organisations run on documents, not databases: P&IDs, work orders,
+OEM manuals, inspection reports, regulatory clauses, spare parts catalogs, and project files, each
+living in its own system, each readable only by whoever already knows where to look. Engineers
+spend a large share of every working day searching for information that already exists somewhere
+in the organisation rather than acting on it. SEEKR exists to close that gap: it ingests the
+heterogeneous document corpus of a plant, extracts and links the facts inside it into a single
+knowledge graph, and exposes that graph through a cited copilot and a small set of specialist
+agents, so that the answer to “why does Pump P-101A keep failing” takes seconds instead of an
+afternoon of cross-referencing binders — and so that the answer to a question no single document
+ever answered, like “which funnel should I use for pipe P-301”, can still be constructed, cited, and
+trusted.
+
+1.2
+
+Root causes SEEKR addresses
+
+• Fragmentation. A single plant operates across many disconnected document systems (P&IDs,
+work orders, procedures, inspection records, spare parts catalogs), with no shared identifier
+space linking a tag number in one system to the same tag in another.
+• Silent knowledge loss. Experienced engineers retire carrying undocumented operational
+judgement that never made it into a procedure or a manual.
+• Unactionable data. Signals frequently exist (a sensor reading, a permit, a maintenance flag)
+but no intelligence layer connects them to a decision before the decision window closes.
+• Un-auditable answers. Even where search tools exist, they return documents, not cited,
+trustable facts an engineer can act on without re-reading the source.
+• Answers that were never written down. Some of the most valuable questions — “which
+spare part is compatible with this pipe” — have answers that exist only as scattered specifications across several documents that were never mentioned together in any single passage.
+No retrieval pathway that looks for an existing sentence will ever find them; they must be
+constructed from parts.
+
+1.3
+
+Why a knowledge graph, not just a chatbot
+
+A plain RAG chatbot over a document corpus answers “what does the manual say about P101A” reasonably well. It cannot answer “what else is connected to P-101A, what has failed
+1
+
+2
+
+SEEKR Engineering Design Document
+
+on it before, and what regulation applies to it” because those are graph-traversal questions, not
+passage-retrieval questions, and it cannot answer “which funnel fits this pipe” at all, because that
+is a graph-construction question with no matching passage anywhere. SEEKR’s defining bet is
+that industrial knowledge is fundamentally relational — equipment connects to equipment, failures recur on equipment types, regulations apply to equipment classes, specifications constrain
+compatible parts — and that a knowledge graph, explored adaptively and reasoned over compositionally, is the only structure that represents that relational shape directly, with vector and
+lexical retrieval layered on top for the passages that back each fact. Chapter 2, §2.3 makes this
+comparison concrete against conventional RAG, and Chapters 9 and 11 are where it is actually
+implemented.
+
+1.4
+
+Scope boundary for this document
+
+This document describes the MVP exactly as it will be built for the 5-week hackathon window.
+It intentionally excludes any subsystem marked Won’t (this cycle) in Chapter 19: Kafka, Kubernetes, a bitemporal claim store, ontology versioning, a DuckDB/ClickHouse analytical mirror,
+RT-DETR+SAM2 line tracing, three-tier autonomy with OPA, Keycloak, OT/historian integration, offline-first PWA/CRDT sync, Microsoft GraphRAG-style offline community summarisation,
+Neo4j GDS Enterprise, fine-tuned models, and a from-scratch academic benchmark. Every one of
+these has a named upgrade trigger in Chapter 19; none of them is a week-1–5 deliverable.
+
+1.5
+
+Stakeholders and their concerns
+
+Stakeholder
+
+Primary concern
+
+Where addressed
+
+Maintenance Engineer
+
+“What has failed on this equipment before, and why?”
+“Which spare part is actually compatible with this equipment?”
+Single view of risk and compliance across the facility
+Evidence of regulatory conformance, gap visibility
+Root-cause hypotheses backed
+by evidence, not guesses
+A working, explainable, checkable demo in 5–8 minutes
+
+SEEKR Asset (Chapter 11),
+Copilot (Chapter 9)
+SEEKR Asset compositional
+reasoning (Chapter 11, §11.5.4)
+
+Reliability Engineer
+Plant Manager
+Compliance Officer
+Reliability Engineer (RCA)
+Hackathon judge
+
+Graph explorer, Compliance
+score (Chapter 13)
+SEEKR Comply (Chapter 11)
+SEEKR Diagnose
+ter 11)
+Chapter 18
+
+Table 1.1: Stakeholder concerns and the chapters that satisfy them
+
+(Chap-
+
+Chapter 2
+Product Vision
+2.1
+
+Vision statement
+
+Vision
+SEEKR is an Industrial Intelligence Fabric that transforms fragmented engineering documents into a living, queryable knowledge graph — enabling explainable AI copilots and specialist agents to reason over industrial knowledge, not isolated documents, and to construct
+answers that no single document ever stated.
+
+3
+
+4
+
+2.2
+
+SEEKR Engineering Design Document
+
+The five pillars, and what they mean at implementation level
+
+Pillar
+
+Product meaning
+
+Implementation surface
+
+Industrial Knowledge
+
+Every document becomes
+structured,
+linked
+facts
+in one graph, including
+specification-level attributes.
+Specialist agents traverse
+the graph to answer crossdocument questions.
+Retrieval understands conversational context and intent, not just the current
+query string, and explores the
+graph adaptively rather than
+at a fixed hop count.
+Where no document ever
+states the answer, SEEKR
+constructs it from scattered,
+cited specifications rather
+than saying “not found.”
+Every fact carries a source,
+a confidence, and a status;
+every answer — retrieved or
+constructed — is cited to the
+passage or fact that produced
+it.
+
+Ingestion pipeline (Chapter 6), facts table, Neo4j
+projection (Chapter 8)
+
+Industrial Reasoning
+Contextual Retrieval
+
+Compositional Reasoning
+
+Industrial Trust & Explainability
+
+SEEKR Asset / Diagnose /
+Comply (Chapter 11)
+Context-aware
+traversal
+pipeline (Chapter 9)
+
+CGFR reasoning pattern
+within
+SEEKR
+Asset
+(Chapter 11, §11.5.4)
+
+facts.status,
+superseded_by,
+audit
+log (Chapter 7); citationresolution check (Chapter 9)
+
+Table 2.1: The five SEEKR pillars mapped to implementation
+
+2.3
+
+Why SEEKR differs from conventional RAG
+
+This is the single question a judge needs answered in under thirty seconds: what is actually novel
+here, beyond “another RAG chatbot”? The honest answer is four compounding differences, each
+of which closes a specific failure mode a plain RAG pipeline cannot.
+
+CHAPTER 2. PRODUCT VISION
+
+5
+
+Traditional RAG
+
+SEEKR
+
+What this unlocks
+
+Passage retrieval
+only (vector
+similarity over
+chunks)
+Fixed context: only
+the current query
+string is embedded
+and searched
+Fixed-depth or
+single-hop graph
+lookups, if a graph
+exists at all
+Direct generation
+from retrieved
+passages; “not found”
+if no passage matches
+
+Hybrid retrieval: graph
+traversal + vector + lexical,
+fused by query type (Chapter 9)
+
+Answers relational questions (“what
+else is connected to this”) that no single passage states
+
+Context-aware traversal: seeds
+assembled from query, chat
+history, and the focused graph
+node (Chapter 9, §9.4)
+Adaptive, best-first,
+relevance-decayed traversal
+bounded by a node budget, not
+a hop count (Chapter 9, §9.6)
+Compositional reasoning
+(CGFR): decompose into
+constraints, gather candidates,
+filter, justify (Chapter 11,
+§11.5.4)
+
+Handles implicit follow-ups (“what
+about the valve?”) with no named entity
+Surfaces distant but relevant nodes (a
+sibling pump 5+ hops away) that a
+fixed hop count would miss
+Answers questions no document ever
+stated, by constructing the answer
+from scattered, individually-cited
+specifications
+
+Table 2.2: SEEKR’s four differentiators versus conventional RAG
+
+The one-sentence pitch
+Conventional RAG retrieves a passage that already answers the question; SEEKR traverses
+a graph that understands conversational context, and — when no passage ever answered the
+question at all — constructs and cites an answer from the facts that do exist.
+
+2.4
+
+Product narrative
+
+The product narrative that drives every UI and demo decision is graph-first: a user does not open
+a document list, they open a living graph, click a node, and watch the system reveal everything
+connected to it — documents, history, failure patterns, agent reasoning, even parts that were
+never mentioned alongside it in any document — as a single continuous interaction rather than a
+sequence of disconnected screens. Chapter 13 and Chapter 18 are built entirely in service of this
+narrative; if a proposed feature does not make the graph feel more alive or more trustworthy, it
+does not belong in the MVP.
+
+2.5
+
+Design principles
+
+1. Cite or say nothing. No generated sentence stands without a resolvable [doc_id:passage_id]
+tag or a graph fact_id; unsupported claims are rejected and regenerated, not shipped softened.
+Where a constructed answer draws on general engineering reasoning rather than a document,
+it is explicitly flagged as such (Chapter 11, §11.5.4).
+2. Never silently overwrite. Conflicting facts both remain queryable, one marked superseded
+or disputed, never deleted.
+3. Retrieval follows intent, not just keywords. The system assembles context from the
+current query, recent conversation, and the currently focused graph node before deciding what
+to retrieve (Chapter 9).
+
+6
+
+SEEKR Engineering Design Document
+
+4. Construct, don’t just retrieve. When an answer is derivable from facts that were never
+stated together in any passage, the system decomposes the question into constraints, gathers
+candidates, filters by compatibility, and cites every constituent fact (Chapter 11, §11.5.4) — it
+does not give up because no single “golden passage” exists.
+5. Fewer moving parts, more demo time. Every architectural choice in Chapter 5 trades
+a small amount of theoretical scalability for a large amount of integration reliability under
+a 5-week clock. Context-aware traversal and compositional reasoning are implemented as
+application-level orchestration over the existing Neo4j, Qdrant, and Postgres stack — not as
+new services.
+6. Judge-checkable over judge-tellable. A metric the team can run live (Chapter 15) beats
+a claim on a slide the team cannot defend under questioning.
+7. Graceful degradation, not silent failure. Every pipeline stage (Chapter 6) has a defined
+fallback path so a single bad document, a single flaky model call, or an incomplete specification
+cannot take down the demo.
+
+2.6
+
+What “done” looks like for the MVP
+
+The MVP is done when a single rehearsed, scripted path (Chapter 18) — click a piece of equipment,
+watch its context light up via context-aware traversal, invoke SEEKR Diagnose, watch it reason
+live with citations, ask SEEKR Asset a compositional “which part fits this” question and watch
+it construct and cite an answer, check the compliance score, submit a correction and watch the
+graph update on screen — runs reliably, end to end, against the real 100–300 document demo
+corpus, in under eight minutes, with no manual intervention.
+
+Chapter 3
+Functional Requirements
+3.1
+
+Requirement notation
+
+Each requirement has an ID of the form FR-<area>-<n>, a priority (Must / Should / Could), and
+a pointer to the chapter that implements it.
+
+3.2
+
+Ingestion & Extraction
+
+ID
+
+Requirement
+
+Priority
+
+Ref
+
+FR-ING-1
+
+System shall ingest PDF (native and scanned)
+and XLSX documents via Docling / pandas.
+System shall extract per-element bounding boxes
+for every parsed element to support citation.
+System shall extract the core entity types
+(Equipment, FailureMode, MaintenanceAction,
+Procedure, Regulation, Document, Personnel,
+SparePart) and their relationships.
+System shall resolve entity mentions to canonical
+tags via the 2.5-stage resolution pipeline (exact,
+fuzzy, embedding fallback).
+System shall process P&ID images via a multimodal VLM call to extract equipment symbols
+and approximate adjacency as graph edges.
+Unresolved entity mentions shall be logged, not
+silently dropped.
+System shall extract specification-level facts (dimensions, material, operating temperature, operating pressure, compatibility ranges) using the
+extended predicate set, in addition to relational
+facts.
+
+Must
+
+Chapter 6
+
+Must
+
+Chapter 6
+
+Must
+
+Chapter 8
+
+Must
+
+Chapter 8
+
+Should
+
+Chapter 6
+
+Must
+
+Chapter 8
+
+Must
+
+Chapter 6, Chapter 8
+
+FR-ING-2
+FR-ING-3
+
+FR-ING-4
+FR-ING-5
+FR-ING-6
+FR-ING-7
+
+Table 3.1: Ingestion & extraction functional requirements
+
+7
+
+8
+
+3.3
+
+SEEKR Engineering Design Document
+
+Knowledge Graph & Facts
+
+ID
+
+Requirement
+
+Priority
+
+Ref
+
+FR-KG-1
+
+Every extracted fact shall be written to the facts
+table with source, confidence, extraction method,
+and status.
+Only active facts shall be projected into Neo4j;
+superseded/ disputed facts remain queryable in
+Postgres.
+A human correction submitted via the feedback
+endpoint shall create a new fact and mark the
+prior one superseded, never delete it.
+The graph shall support adaptive, relevancedecayed traversal (not a fixed hop count) for
+context-aware retrieval, in addition to a fast fixeddepth (≤ 2) mode.
+The graph schema shall support specificationtype relationships (hasSpec, hasMaterial,
+operatingTemp,
+operatingPressure,
+fitsRange, compatibleWith, ratedFor) without
+any schema migration, relying on Neo4j’s schemafree relationship types.
+
+Must
+
+Chapter 7
+
+Must
+
+Chapter 8
+
+Should
+
+Chapter 12
+
+Must
+
+Chapter 8, Chapter 9
+
+Must
+
+Chapter 8
+
+FR-KG-2
+FR-KG-3
+FR-KG-4
+
+FR-KG-5
+
+Table 3.2: Knowledge graph functional requirements
+
+CHAPTER 3. FUNCTIONAL REQUIREMENTS
+
+3.4
+
+9
+
+Retrieval & Copilot (SEEKR Ask)
+
+ID
+
+Requirement
+
+Priority
+
+Ref
+
+FR-RAG-1
+
+System shall classify each incoming query into factual / diagnostic / procedural / open.
+System shall fan out to graph, vector, and lexical
+retrieval in parallel and fuse results by query-type
+weights.
+System shall re-rank fused candidates with a crossencoder to 5–8 chunks before generation.
+Every generated sentence shall carry a
+[doc_id:passage_id] citation tag resolvable
+to a retrieved passage; unresolved tags trigger one
+regeneration attempt.
+Copilot
+responses
+shall
+stream
+over
+SSE/WebSocket, not block on full generation.
+The graph retrieval pathway shall assemble seed context from the current query, recent chat history, and
+the currently focused graph node (not from explicit
+query entities alone).
+The graph retrieval pathway shall expand seeds via
+embedding similarity and equipment-type matching,
+in addition to direct entity mentions.
+Graph traversal shall use a best-first, relevancedecaying algorithm bounded by a node budget and
+a depth ceiling, rather than a fixed hop count, for
+diagnostic and open queries.
+For diagnostic and open queries, the retrieval pathway shall additionally compute multi-seed shortest
+paths and lightweight hub detection to surface crossdomain bridge nodes.
+A fast, fixed-depth (“shallow”) traversal mode shall
+remain available for factual queries and as a fallback.
+
+Must
+
+Chapter 9
+
+Must
+
+Chapter 9
+
+Must
+
+Chapter 9
+
+Must
+
+Chapter 9
+
+Must
+
+Chapter 12
+
+Must
+
+Chapter 9
+
+Must
+
+Chapter 9
+
+Must
+
+Chapter 9
+
+Should
+
+Chapter 9
+
+Must
+
+Chapter 9, §9.14
+
+FR-RAG-2
+FR-RAG-3
+FR-RAG-4
+
+FR-RAG-5
+FR-RAG-6
+
+FR-RAG-7
+FR-RAG-8
+
+FR-RAG-9
+
+FR-RAG-10
+
+Table 3.3: Retrieval and copilot functional requirements
+
+10
+
+3.5
+
+SEEKR Engineering Design Document
+
+Agents
+
+ID
+
+Requirement
+
+Priority
+
+Ref
+
+FR-AGT-1
+
+A Supervisor shall route queries and explicit invocations to exactly one of three workers: SEEKR
+Asset, SEEKR Diagnose, SEEKR Comply.
+SEEKR Asset shall surface recurring failure
+modes and pattern-matched past incidents for a
+given tag.
+SEEKR Diagnose shall generate ranked,
+evidence-cited causal hypotheses and discard
+self-critiqued unsupported ones.
+SEEKR Comply shall check a curated set of 10–
+15 regulation clauses against equipment records
+and flag gaps.
+Every worker shall be capped at a fixed maximum
+tool-call count to prevent runaway loops.
+Tier-2 (propose) actions shall render with a confirm/dismiss control gated by role; no action shall
+auto-execute.
+Agent reasoning steps shall stream live and be replayable after completion.
+SEEKR Asset shall support compositional reasoning for component-selection and compatibility
+questions (“which X for Y”) via the ConstraintGather-Filter-Reason pattern, without changing
+the overall supervisor–worker architecture.
+When a compositional answer cannot be fully
+grounded in retrieved facts, SEEKR Asset shall
+explicitly flag which constraint is unverified or
+which recommendation rests on general engineering knowledge rather than a document.
+
+Must
+
+Chapter 11
+
+Must
+
+Chapter 11
+
+Must
+
+Chapter 11
+
+Must
+
+Chapter 11
+
+Must
+
+Chapter 11
+
+Should
+
+Chapter 11
+
+Should
+
+Chapter 13
+
+Must
+
+Chapter 11, §11.5.4
+
+Must
+
+Chapter 11, §11.5.4
+
+FR-AGT-2
+FR-AGT-3
+FR-AGT-4
+FR-AGT-5
+FR-AGT-6
+FR-AGT-7
+FR-AGT-8
+
+FR-AGT-9
+
+Table 3.4: Agent functional requirements
+
+CHAPTER 3. FUNCTIONAL REQUIREMENTS
+
+3.6
+
+11
+
+Frontend
+
+ID
+
+Requirement
+
+Priority
+
+Ref
+
+FR-UI-1
+
+Dashboard shall open directly on the graph
+explorer, not a document list.
+Search shall always resolve to a graph node
+and re-centre the view on it.
+Node click shall open a side panel with SEEKR Ask, maintenance timeline, and linked
+documents, and shall send the clicked node’s
+tag to the backend as focused_tag on subsequent queries.
+Compliance shall render as a single score
+with red/amber/green drill-down, not a table.
+UI shall be responsive on a phone browser; a
+voice-input button is a stretch goal.
+SEEKR Asset compositional-reasoning answers shall render candidate comparisons
+as a structured table (property-by-property
+pass/fail), not as unstructured prose.
+
+Must
+
+Chapter 13
+
+Must
+
+Chapter 13
+
+Must
+
+Chapter 13, Chapter 9
+
+Should
+
+Chapter 13
+
+Should/Could
+
+Chapter 13
+
+Should
+
+Chapter 13
+
+FR-UI-2
+FR-UI-3
+
+FR-UI-4
+FR-UI-5
+FR-UI-6
+
+Table 3.5: Frontend functional requirements
+
+3.7
+
+Auth & Audit
+
+ID
+
+Requirement
+
+Priority
+
+Ref
+
+FR-AUTH-1
+
+System shall support 4 seeded roles (technician, engineer,
+compliance officer, admin) with route-level RBAC.
+Every agent action and query shall be written to
+audit_log with actor, action, payload, timestamp.
+
+Must
+
+Chapter 14
+
+Must
+
+Chapter 7
+
+FR-AUTH-2
+
+Table 3.6: Auth and audit functional requirements
+
+Chapter 4
+Non-functional Requirements
+4.1
+
+Scale envelope (deliberately small)
+
+Every NFR below is scoped to the demo envelope — 100–300 documents, 15–25 pieces of
+equipment, 2–3 P&IDs, a handful of concurrent demo users. These are not placeholders to
+be grown later inside this build; they are the actual target. Designing past them (connection
+pools for thousands of concurrent users, sharded graph storage, full GDS clustering, etc.) is
+explicitly out of scope and is recorded instead in Chapter 19.
+
+Dimension
+
+Target
+
+Corpus size
+
+100–300 documents, mixed PDF (native + scanned) and XLSX, 2–3 P&ID
+images
+15–25 tags, enough overlapping records for a connected graph
+Single demo machine / single cloud VM; 1–5 concurrent sessions
+Low tens of queries per demo run; no sustained load
+Full corpus ingested once during Weeks 1–2, incremental additions thereafter
+
+Equipment count
+Concurrent users
+Query volume
+Ingestion volume
+
+Table 4.1: Scale envelope
+
+12
+
+CHAPTER 4. NON-FUNCTIONAL REQUIREMENTS
+
+4.2
+
+13
+
+Latency targets
+
+Operation
+
+Target (P95)
+
+Notes
+
+Copilot first token
+
+< 2s
+
+Copilot full answer
+
+< 8s
+
+Graph retrieval pathway (full, diagnostic/open)
+
+< 500ms
+
+Graph retrieval pathway (shallow, factual)
+
+< 300ms
+
+Vector search (top 20)
+
+< 200ms
+
+Lexical search (top 20)
+
+< 150ms
+
+Agent invocation (Asset/Comply, non-compositional)
+
+< 15s
+
+Agent invocation (Asset, compositional/CGFR)
+
+< 25s
+
+Agent invocation (Diagnose)
+
+< 30s
+
+Document ingestion (per doc)
+
+< 60s
+
+P&ID VLM extraction
+
+< 20s per drawing
+
+Time
+to
+first
+SSE token after
+/api/query
+Includes
+retrieval
+fan-out,
+re-rank,
+generation, citation
+check
+Five-phase contextaware
+pipeline:
+context assembly,
+seed
+expansion,
+adaptive traversal,
+structural enrichment,
+passage
+synthesis
+(Chapter 9)
+Fixed-depth ≤ 2
+fast path, retained
+as §9.14
+Qdrant, single collection, demo-scale
+Postgres FTS /
+BM25
+Single graph query
++ one LLM synthesis call
+Constraint extraction + two parallel
+retrievals + compatibility filtering
++ justified selection (Chapter 11,
+§11.5.4)
+Plan-then-execute
+with
+self-critique
+pass
+Docling parse + extraction + resolution, mid-size PDF
+Single multimodal
+call
+
+Table 4.2: Latency targets, measured per Chapter 15
+
+14
+
+4.3
+
+SEEKR Engineering Design Document
+
+Reliability & degradation
+
+The system has no uptime SLA (it is a single demo run), but must degrade gracefully rather than
+fail visibly on stage:
+• If P&ID live VLM extraction is slow or fails during the demo, fall back to 2–3 pre-processed
+drawings with graph edges pre-loaded (see Chapter 17).
+• If a single document fails to parse, ingestion continues for the remaining corpus; the failure is
+logged, not fatal to the batch.
+• If the frontier model call for Copilot generation times out, retry once with the same retrieved
+context before surfacing an error state to the user.
+• If an agent exceeds its max_iterations cap, it returns its best partial answer with an explicit
+“inconclusive” marker rather than hanging.
+• If context-aware traversal’s structural-enrichment phase (Chapter 9) is slow, it is dropped and
+the answer proceeds on adaptive-traversal results alone, per the per-phase budget in Chapter 9.
+• If a compositional (CGFR) query cannot find candidate specifications for one side of the comparison, SEEKR Asset returns a partial, explicitly-flagged answer rather than fabricating a
+specification (Chapter 11, §11.5.4).
+
+4.4
+
+Explainability & trust
+
+• Every Copilot sentence must resolve to a specific doc_id and passage_id, or, for graph-derived
+synthetic passages, to a specific fact_id.
+• Every fact must carry source_doc_id, confidence, and status.
+• Every agent conclusion, including compositional (CGFR) recommendations, must be traceable
+to the graph nodes/edges and documents that produced it (evidence chain, replayable).
+• Any part of a constructed answer that is not grounded in a retrieved fact must be explicitly
+labelled as general engineering reasoning, never presented as if it were sourced.
+
+4.5
+
+Security (demo-appropriate, not enterprise)
+
+JWT-based auth with 3–4 hardcoded roles and route-level RBAC (Chapter 14) is sufficient. No
+SSO, no ABAC policy engine, no mTLS service mesh — these are enterprise upgrade triggers, not
+MVP requirements (Chapter 19).
+
+4.6
+
+Maintainability
+
+• Single Python codebase for the backend (FastAPI + LangGraph + retrieval utilities); single
+Next.js codebase for the frontend — two repositories, not eighteen services.
+• Configuration via environment variables (Chapter 17), no hardcoded credentials or endpoints.
+• Structured logging on every pipeline stage and every agent step, sufficient to debug a demo
+failure within minutes, not hours.
+• Context-aware traversal and compositional reasoning are implemented as pure application-level
+functions and agent tools inside the existing fabric-api service — no new deployable unit is
+introduced by either capability.
+
+CHAPTER 4. NON-FUNCTIONAL REQUIREMENTS
+
+4.7
+
+15
+
+Portability
+
+Docker Compose on one workstation or one cloud VM is the only deployment target. No Kubernetes manifests, no multi-node orchestration (Chapter 17).
+
+4.8
+
+Usability
+
+The graph explorer is the primary navigation surface and must be usable by a judge with zero
+onboarding: search, click, read. The UI must remain acceptable on a phone browser (Chapter 13)
+without requiring an installed app.
+
+Chapter 5
+System Architecture
+5.1
+
+The whole system in one diagram
+
+Before the layer-by-layer breakdown below, this is the single picture that explains SEEKR end
+to end — from a raw document upload to a cited, on-screen answer. Every chapter after this one
+is a detailed explanation of exactly one box in this diagram; nothing in this document introduces
+a stage that does not appear here.
+
+Document
+Upload
+
+User Query
++ focused_tag
+
+Docling
+Parse
+
+Entity + Spec
+Extraction
+
+Entity
+Resolution
+
+Postgres
+(facts, docs)
+
+Qdrant
+(vectors)
+
+Neo4j
+(graph)
+
+Query
+Classification
+
+Context
+Assembly
+
+Seed
+Expansion
+
+Lexical
+Retrieval
+
+Vector
+Retrieval
+
+Adaptive Graph
+Traversal
+
+Structural
+Enrichment
+
+Evidence
+Fusion + Re-rank
+
+LLM
+Generation
+
+Agent
+(incl. CGFR)
+
+UI: Cited Answer
+/ Graph Update
+
+Figure 5.1: Master pipeline: the entire SEEKR system in one diagram. Top: ingestion (Docling
+parse → extraction → resolution → Neo4j/Qdrant/Postgres). Middle: a query is classified, its context
+assembled (query + chat history + focused graph node), and fanned out across adaptive graph traversal,
+vector, and lexical retrieval. Bottom: fused evidence feeds generation and, where relevant, an agent
+(including compositional CGFR reasoning), both landing back in the UI as a cited answer or a live graph
+update.
+
+16
+
+CHAPTER 5. SYSTEM ARCHITECTURE
+
+5.2
+
+17
+
+Key technology decisions at a glance
+
+Five choices carry most of the architectural weight in Figure 5.1. The full rationale and rejected
+alternatives for every technology choice are in the Decision Log appendix; this table is the one-line
+version for a reader who only has thirty seconds per decision.
+
+Choice
+
+Why, in one line
+
+Neo4j (Community)
+
+Mature Cypher tooling and the graphlibrary ecosystem needed for both fixeddepth and adaptive traversal, without paying for GDS Enterprise at demo scale
+Single-binary vector store with native hybrid (dense+sparse) search, reused directly
+by both the vector retrieval pathway and
+graph seed expansion — one collection, two
+jobs
+Per-element bounding-box provenance is
+what makes passage-level citation possible
+at all; strongest table-structure recognition
+of the options considered
+Deterministic supervisor–worker orchestration with typed tool contracts and state
+checkpointing, so a 4-person team can reason about agent control flow under a 5-week
+clock
+Removes network hops (and their auth, retries, observability cost) between retrieval,
+generation, and agent logic — context-aware
+traversal and CGFR are functions inside this
+app, not new services
+
+Qdrant
+
+Docling
+
+LangGraph
+
+One FastAPI app for Fabric + Retrieval + Agents
+
+Table 5.1: Key technology decisions at a glance
+
+5.3
+
+Three-layer architecture
+
+The system is exactly three logical layers, deployed as four Docker Compose service groups,
+matching the top-to-bottom structure of Figure 5.1. Context-aware retrieval and compositional
+reasoning are both new capabilities inside this same shape — neither adds a box or an arrow
+beyond what Figure 5.1 already shows.
+
+18
+
+SEEKR Engineering Design Document
+
+PRESENTATION (Next.js)
+Copilot chat · Graph explorer · Agent dashboards · Compliance view · Mobile
+
+REST + SSE
+
+FABRIC + RETRIEVAL + AGENTS (one FastAPI app)
+
+Copilot (HybridRAG + context-aware graph traversal) · Agent Supervisor (LangGraph) · CGFR compositional reasoning tools · E
+
+Neo4j
+
+Qdrant
+
+KG store
+
+Vectors
+
+Postgres
+facts, docs,
+
+audit, users, FTS
+writes facts
+
+INGESTION + EXTRACTION (background worker, Redis queue)
+doc upload → Docling parse → chunk → NER/LLM extraction (incl. spec predicates) → entity resol
+P&ID images → VLM structured extraction → graph edges
+Figure 5.2: Three-layer architecture, deployed as four Docker Compose service groups — unchanged by
+the context-aware retrieval and compositional reasoning capabilities
+
+5.4
+
+Layer 1: Presentation (Next.js)
+
+Purpose. Render the graph-first UI and stream Copilot / agent output. Responsibilities.
+Authentication UI and token storage; graph rendering via Cytoscape.js; SSE/WebSocket client
+for streaming answers and agent steps; role-aware UI gating; tracking the currently focused graph
+node and forwarding it as focused_tag on every query (Chapter 9); rendering SEEKR Asset’s
+compositional comparisons as structured tables (Chapter 13). Inputs. User interaction events
+(search, click, confirm/dismiss); streamed server events. Outputs. REST calls to the Fabric
+layer; rendered graph, chat, and dashboard views. Dependencies. Fabric layer’s REST/SSE/WS
+surface (Chapter 12). Full detail in Chapter 13.
+
+5.5
+
+Layer 2: Fabric + Retrieval + Agents (one FastAPI app)
+
+Purpose. The single backend service that owns all business logic: retrieval, generation, agent
+orchestration, and graph/entity queries. Responsibilities.
+• Expose the Copilot endpoint (/api/query) implementing HybridRAG with context-aware graph
+traversal (Chapter 9).
+• Host the LangGraph Supervisor and its three workers, including SEEKR Asset’s compositional (CGFR) reasoning mode (Chapter 11).
+• Expose entity and graph query endpoints backed by Neo4j.
+• Enforce JWT auth and role-based route guards on every endpoint (Chapter 14).
+• Write every query and agent action to audit_log.
+Inputs. REST requests from the frontend; background-queue completion events from the in-
+
+CHAPTER 5. SYSTEM ARCHITECTURE
+
+19
+
+gestion worker (new facts available). Outputs. Cited answers (SSE), agent reasoning streams
+(SSE/WS), graph query results (JSON), audit records. Dependencies. Neo4j, Qdrant, Postgres, Redis (for agent job queue if async agent invocation is used), the frontier and fast-tier LLM
+providers. Why one app, not many services. See Section 5.2; a single FastAPI process is
+precisely why context-aware traversal and compositional reasoning are implemented as functions
+and agent tools inside this app rather than as a new retrieval microservice or a new reasoning
+microservice.
+
+5.6
+
+Layer 3: Ingestion + Extraction (background worker)
+
+Purpose. Turn raw uploaded documents into facts, embeddings, and graph edges, asynchronously,
+so the upload endpoint returns immediately. Responsibilities. Docling parsing; pandas/openpyxl
+loading for spreadsheets; chunking; NER/LLM structured extraction against the extended predicate set (including specification-type predicates, Chapter 8); 2.5-stage entity resolution; VLM
+extraction for P&ID images; writing candidate facts to Postgres, embeddings to Qdrant, and materialising active facts into Neo4j. Inputs. Uploaded files (via /api/documents), queued as jobs
+in Redis. Outputs. Rows in facts, document_registry, entity_registry; vectors in Qdrant;
+nodes/edges in Neo4j. Dependencies. Redis (queue), Docling, the fast-tier LLM, the embedding
+model, Postgres, Neo4j, Qdrant. Full detail in Chapter 6.
+
+5.7
+
+Data stores
+
+Store
+
+Role
+
+Neo4j Community
+
+Knowledge graph of active facts, including specification-type relationships;
+traversal queries (both shallow fixed-depth and adaptive relevance-decayed)
+for agents and the graph explorer
+Chunk-level embeddings for vector similarity retrieval, with doc/page/bbox
+metadata; reused directly by the seed-expansion phase of context-aware
+traversal
+System of record for facts (all statuses, including specification facts), document registry, entity registry/aliases, users, audit log, and full-text search
+index
+Lightweight async job queue for ingestion (RQ)
+
+Qdrant
+PostgreSQL
+Redis
+
+Table 5.2: Data stores and their roles
+
+5.8
+
+Request lifecycle: Copilot query
+
+This is Figure 5.1’s middle section, spelled out step by step:
+1. Client sends query + JWT + session context to POST /api/query. The payload carries
+query, session_id, and an optional focused_tag — the tag of whichever graph node the user
+currently has selected in the explorer (Chapter 9).
+2. Role check (coarse RBAC). FastAPI dependency validates the JWT signature and expiry,
+then checks the requested scope against the role claim; a failing check returns 403 with a
+machine-readable reason.
+3. Query classification. A single fast-tier LLM call (or a regex/keyword pre-filter with the
+LLM as fallback) tags the query as factual / diagnostic / procedural / open. This tag drives
+both the fusion weights (Chapter 9, Table 9.9) and the shallow-vs-full traversal depth decision.
+
+20
+
+SEEKR Engineering Design Document
+
+4. Context assembly and parallel fan-out. The graph pathway first assembles a rich seed
+context (current query entities, recent chat-history entities, the focused node) and then three
+async retrieval calls run concurrently: the context-aware graph traversal (Chapter 9), Qdrant
+vector search, and Postgres FTS/BM25 lexical search. Each has its own timeout; a slow
+pathway is dropped from fusion rather than blocking the other two.
+5. Merge + re-rank. Candidates from all three pathways — including the synthetic passages
+produced by graph traversal — are merged, deduplicated by passage ID, and passed through
+the local cross-encoder to select the top 5–8 chunks.
+6. Generation + citation check. The frontier model generates a cited answer from the selected
+chunks; a citation-resolution check parses every [doc_id:passage_id] tag and rejects the
+answer once, regenerating with an explicit instruction to only use resolvable tags, if any tag
+fails to resolve.
+7. Agent trigger check. If the query or its classification matches an agent-trigger pattern
+— including a component-selection or compatibility pattern that routes to SEEKR Asset’s
+compositional reasoning mode (Chapter 11) — the Supervisor is invoked asynchronously and
+streams a follow-up event over the same SSE channel.
+8. Response + audit. The final answer and its citations are returned to the client; the query,
+the resolved pathway weights, and the result are written to audit_log.
+
+Frontend
+
+API
+
+Context
+Assembly
+
+Retrieval
+Fan-out
+
+LLM
+
+Supervisor
+
+POST /api/query {query, session_id, focused_tag}
+classify query
+assemble context
+
+chat history + focused node
+expand + traverse
+graph path
+vector path
+lexical path
+
+fan-out
+
+RRF + re-rank
+context window
+SSE: tokens + citations
+agent trigger?
+route to worker (incl. CGFR)
+worker result
+SSE: agent_trigger + done
+
+Figure 5.3: Sequence diagram: Copilot query through context assembly, retrieval, generation, and optional agent follow-up (including compositional reasoning) — the same flow as Figure 5.1, shown as a
+timeline instead of a pipeline
+
+CHAPTER 5. SYSTEM ARCHITECTURE
+
+5.9
+
+21
+
+Component interaction summary
+
+From
+
+To
+
+Interaction
+
+Frontend
+
+Fabric API
+
+Fabric API
+
+Neo4j
+
+Fabric API
+
+Qdrant
+
+Fabric API
+Fabric API
+Ingestion worker
+
+Postgres
+Redis
+Postgres/Neo4j/Qdrant
+
+Fabric API
+
+LLM providers
+
+REST for CRUD/query, SSE for streaming answers,
+WS for Copilot session; focused_tag included on
+every query
+Cypher via the official Neo4j Python driver,
+connection-pooled; both fixed-depth and batched
+adaptive-traversal queries
+gRPC/HTTP via qdrant-client, one collection;
+reused by both the vector retrieval pathway and the
+graph seed-expansion phase
+asyncpg/SQLAlchemy async engine
+Job enqueue for ingestion (RQ), read of job status
+Writes candidate facts (including specification
+facts), embeddings, and graph edges
+Direct SDK calls (fast tier and frontier tier), see
+Chapter 10
+
+Table 5.3: Component interaction summary
+
+5.10
+
+Demo corpus target
+
+The design point for every latency and capacity decision in this document is ∼100–300 industrial
+documents (a realistic mix of PDFs, a handful of scanned pages, a couple of spreadsheets including
+a spare parts catalog with dimensional/material specifications, and 2–3 P&ID drawings), covering
+roughly 15–25 pieces of equipment with enough overlapping work orders, inspection reports, and
+OEM manual pages to make the graph genuinely connected — and enough specification data on
+both equipment and spare parts to make compositional reasoning demonstrable.
+
+Chapter 6
+Data Flow
+6.1
+
+End-to-end pipeline
+
+The stage list below is the ingestion half of Figure 5.1 (Section 5.1), plus the retrieval/agent/frontend
+stages that consume what ingestion produces, so each box in the master diagram has exactly one
+place it is explained in full.
+Document
+Upload
+
+Parsing
+(Docling)
+
+Entity + Spec
+Extraction
+
+Entity
+Resolution
+
+Copilot
+
+Context-Aware
+Retrieval
+
+Vector DB
+
+Knowledge
+Graph
+
+Agents (incl.
+CGFR)
+
+Frontend
+
+Figure 6.1: End-to-end data flow — the same ten stages as Figure 5.1, laid out linearly
+
+6.2
+
+Stage 1: Document Upload
+
+Purpose. Accept a file, register it, and hand it to the async ingestion queue without blocking
+the caller. Inputs. Multipart file upload (PDF, XLSX, or image) via POST /api/documents.
+Outputs. A document_registry row with status queued; a Redis/RQ job ID. Algorithm. (1)
+Validate MIME type and size; (2) store the raw file to a local/mounted volume keyed by a generated doc_id (UUID); (3) insert a document_registry row (doc_id, type, authority_class,
+ingested_at, status=’queued’); (4) enqueue an ingestion job referencing doc_id; (5) return
+doc_id and status_url to the caller. Edge cases. Duplicate filename (allowed — doc_id is the
+identity, not the filename); zero-byte upload (rejected, 422); unsupported MIME type (rejected
+with a clear message naming supported types). Error handling. Storage write failures return
+500 and do not enqueue a job for a file that was never durably stored. Logging. doc_id, filename,
+size, MIME type, uploader (from JWT), timestamp. Expected latency. < 500ms (excludes the
+async pipeline that follows). Dependencies. Postgres, Redis, local/volume storage.
+
+22
+
+CHAPTER 6. DATA FLOW
+
+6.3
+
+23
+
+Stage 2: Parsing (Docling)
+
+Purpose. Convert a raw document into structured text with layout and bounding-box provenance. Inputs. Raw file path from Stage 1. Outputs. A structured document object: ordered elements (paragraph, heading, table cell, figure) each with page number, bounding box,
+and element type; routed separately for spreadsheets. Algorithm. PDF/DOCX → Docling’s
+layout+OCR+table pipeline, producing per-element bounding boxes used later for citations.
+XLSX/CSV → pandas/openpyxl loader producing one structured record per sheet/row, with
+a synthetic bounding box (null page, cell range as the locator) so the same citation schema
+applies uniformly — this is how spare-parts-catalog rows (dimensions, material, rated pressure/temperature) become citable facts. Edge cases. Scanned pages with poor OCR confidence are still passed through (Docling’s OCR path) with a lower per-element confidence flag
+propagated to Stage 3 extraction confidence. Password-protected or corrupt files fail this stage
+explicitly, marking document_registry.status=’parse_failed’ rather than silently skipping.
+Error handling. A parse failure on one document does not block the batch; the job is marked
+failed and logged, ingestion of the remaining queue continues. Logging. Element count, page
+count, OCR-confidence distribution, parse duration. Expected latency. A few seconds to ∼30s
+per document depending on page count and whether OCR is invoked. Dependencies. Docling,
+pandas/openpyxl. Future extension. None planned; Docling covers the MVP’s full format set
+(Chapter 19 adds no new parser).
+
+6.4
+
+Stage 3: Entity & Specification Extraction
+
+Purpose. Turn parsed elements into candidate entities, relational facts, and specification facts.
+Inputs. Structured document elements from Stage 2 (chunked per Chapter 9’s chunking scheme).
+Outputs. Candidate (subject, predicate, object) triples with a source passage reference,
+an extraction_method tag (RuleBased for simple tag-pattern regex hits, LLM for structured extraction calls), and a raw confidence score. Algorithm. (1) A rule-based pass matches known
+tag-number patterns (e.g. P-\d{3}[A-Z]?) directly against the ontology’s Equipment type. (2) A
+fast-tier LLM call performs JSON-schema-constrained structured extraction per chunk, prompted
+with the extended ontology’s entity and relationship types (Chapter 8, including the specificationtype predicates below) and instructed to only extract what the passage states, never to infer
+beyond it. (3) P&ID images bypass text extraction entirely and go through the VLM path (Stage
+3b) instead.
+1
+2
+3
+4
+5
+
+# Relational predicates ( unchanged from the original ontology )
+PREDICATES = [
+" ex per iencedFailure " , " hasProcedure " , " connectedTo " ,
+" regulatedBy " , " addresses " , " usesPart " , " mentions " ,
+]
+
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+
+# Specification - type predicates , required for compositional reasoning
+# ( Ch . 11 , Section " Compositional Reasoning ") -- prompt - level extension only ,
+# no extraction - service code change and no graph - schema migration .
+PR E DI C AT E S _EXTENDED = [
+* PREDICATES ,
+" hasSpec " ,
+# Equipment -> spec value ( diameter , weight , ...)
+" hasMaterial " ,
+# Equipment / SparePart -> material grade
+" operatingTemp " ,
+# Equipment -> operating temperature
+" op eratingPressure " ,
+# Equipment -> operating pressure
+" fitsRange " ,
+# SparePart -> compatible dimension range
+" compatibleWith " ,
+# Material -> Material or Chemical
+" ratedFor " ,
+# SparePart -> operating condition limit
+]
+
+24
+
+SEEKR Engineering Design Document
+
+Listing 6.1: Extended predicate set fed to the extraction prompt (Ch. 8’s relational predicates, extended
+with specification-type predicates)
+
+This is a prompt-level extension only: the JSON schema for structured extraction (Chapter 10)
+simply lists more allowed predicate values, and the Neo4j write path (Chapter 8) already MERGEs
+arbitrary relationship types, so no extraction-service code change and no graph-schema migration
+are required to support it.
+Stage 3b: P&ID extraction. A single multimodal (frontier-tier) call per drawing image,
+prompted to return a JSON list of {symbol_type, tag_if_legible, approximate_bbox} and a list
+of {tag_a, tag_b, connection_confidence} adjacency pairs inferred from line proximity. These
+are written as graph edges with lower confidence than text-derived facts (typically ≤ 0.6 vs. ≥ 0.8
+for text-derived). Edge cases. A chunk with no extractable entities returns an empty list, not
+an error. Malformed LLM JSON output triggers one retry with a stricter schema reminder before
+the chunk is logged as extraction_failed and skipped. Error handling. Extraction failures
+are per-chunk, not per-document. Logging. Triples extracted per document, extraction method
+breakdown, JSON-parse failure rate, and specifically the fraction of extracted triples that use a
+specification-type predicate (a leading indicator for whether compositional reasoning will have
+anything to work with, Chapter 11 §11.5.4). Expected latency. Dominated by the number
+of chunks × one fast-tier call each; target < 60s per average document end-to-end for Stages
+2–3 combined. Dependencies. Fast-tier LLM (bulk extraction), frontier-tier multimodal LLM
+(P&ID only).
+
+6.5
+
+Stage 4: Entity Resolution
+
+Purpose. Map every extracted mention to a canonical entity so “P-101A”, “Pump 101A”, and
+“the feed pump” become one graph node. Inputs. Candidate triples from Stage 3; the canonical
+tag list and alias table built during demo-corpus onboarding. Algorithm (2.5 stages).
+1. Exact tag match against the canonical tag list.
+2. Fuzzy string match (Levenshtein/Jaro–Winkler, threshold ∼ 0.85).
+3. Embedding fallback (the “0.5” stage) for free-text mentions with no tag structure, reusing
+the RAG embedding model already deployed.
+Outputs. Resolved subject_tag/object_tag on each triple; unresolved mentions logged. Edge
+cases. Two distinct canonical tags whose fuzzy-match scores tie: resolve to the higher raw stringsimilarity score and log the ambiguity. Error handling. An unresolved mention still allows the
+surrounding triple’s other side (if resolved) to be written; a triple with both sides unresolved is
+dropped with a log entry. Logging. Resolution stage that fired per mention, unresolved count
+per document. Expected latency. Sub-second per mention for stages 1–2; embedding fallback
+bounded by the existing embedding model’s call latency. Dependencies. Canonical tag list,
+alias table, RAG embedding model.
+
+6.6
+
+Stage 5: Knowledge Graph
+
+Purpose. Persist resolved facts as the system of record, and materialise active facts into Neo4j
+for traversal. Inputs. Resolved triples from Stage 4. Outputs. Rows in the Postgres facts
+table (Chapter 7); corresponding nodes/edges in Neo4j for status=’active’ facts only, including
+specification-type edges. Algorithm. Each resolved triple is written as one facts row with a fresh
+fact_id, status=’active’. A Neo4j MERGE (on canonical tag) creates or reuses the subject/object
+node, then MERGEs the relationship edge with the fact’s confidence as an edge property. Full detail
+
+CHAPTER 6. DATA FLOW
+
+25
+
+and schema in Chapter 8. Edge cases. A new fact that contradicts an existing active fact on the
+same (subject,predicate) does not overwrite it silently; see the fact/trust model in Chapter 8.
+Expected latency. Sub-100ms per fact write; batched per document.
+
+6.7
+
+Stage 6: Vector DB
+
+Purpose. Make every chunk retrievable by semantic similarity — and, as of the context-aware
+retrieval design, also usable as the substrate for graph seed expansion (Chapter 9). Inputs.
+Chunks produced during Stage 2/3 chunking (parent–child, structure-aware, capped at 512 tokens
+per Chapter 9). Outputs. One Qdrant point per chunk: embedding vector + payload {doc_id,
+page, bbox, authority_class}. Expected latency. Embedding call latency dominates; batched
+per document.
+
+6.8
+
+Stage 7: Context-Aware Retrieval
+
+Detailed fully in Chapter 9. In the data-flow view, this stage consumes the graph, the vector
+index, and the lexical index built in Stages 5–6, assembles a rich seed context from the current
+query, chat history, and the focused graph node, adaptively traverses the graph, and produces
+a ranked, re-ranked set of 5–8 chunks for a given query. This is SEEKR’s core differentiator
+versus a conventional retrieval pipeline; Table 2.2 in Chapter 2 summarises exactly what it does
+that plain vector search cannot.
+
+6.9
+
+Stage 8: Copilot
+
+Consumes the re-ranked chunks from Stage 7 and generates a cited answer, as detailed in Chapter 9
+and the request lifecycle in Section 5.8.
+
+6.10
+
+Stage 9: Agents (including Compositional Reasoning)
+
+Consumes the graph (Stage 5) and, where relevant, Copilot-style retrieval (Stage 7) to produce
+worker-specific outputs (risk scores, causal hypotheses, compliance gaps, and — for SEEKR
+Asset on component-selection questions — constructed, cited compositional recommendations).
+Full detail in Chapter 11.
+
+6.11
+
+Stage 10: Frontend
+
+Renders Copilot answers, agent outputs, compositional comparison tables, and the graph itself.
+Full detail in Chapter 13.
+
+26
+
+6.12
+
+SEEKR Engineering Design Document
+
+Pipeline-wide error handling policy
+
+Failure
+
+Policy
+
+Single document parse failure
+
+Mark parse_failed, continue
+batch, surface in an ingestion
+status view
+Retry once with stricter
+schema, else skip chunk, log
+Log, do not block the rest of
+the document’s facts
+One retry; on second failure,
+surface a degraded response
+rather than hang
+Fall back to pre-loaded graph
+edges for the curated drawings
+(Chapter 4)
+Drop the phase, proceed with
+adaptive-traversal results only
+Return an explicitly-flagged,
+general- knowledge-based answer rather than fabricating a
+match (Chapter 11, §11.5.4)
+
+Single chunk extraction failure
+Unresolved entity mention
+LLM call timeout (any tier)
+P&ID VLM call failure during demo
+Structural-enrichment phase (Ch. 9) exceeds its latency budget
+CGFR candidate gathering finds zero candidates
+
+Table 6.1: Pipeline-wide error handling policy
+
+Chapter 7
+Database Design
+7.1
+
+Overview
+
+PostgreSQL is the system of record for facts, documents, entities, users, and audit history; Neo4j
+holds a derived, active-facts-only graph view; Qdrant holds chunk embeddings. This chapter
+covers the Postgres schema in full; Neo4j’s graph model is in Chapter 8; Qdrant’s collection
+schema is in Chapter 9. No table in this chapter changes shape to support specification facts or
+compositional reasoning — both are accommodated entirely within the existing facts.predicate
+free-text column and the existing entity_registry. attributes JSONB column.
+
+7.2
+
+Entity-relationship overview
+source_doc_id
+
+subject/object_tag
+
+document_registry
+
+facts
+
+entity_registry
+aliases
+
+users
+
+actor
+
+audit_log
+
+entity_aliases
+
+Figure 7.1: Postgres entity-relationship overview
+
+7.3
+1
+2
+3
+4
+5
+
+6
+
+7
+
+8
+9
+10
+11
+12
+
+Table: document_registry
+
+CREATE TABLE document_registry (
+doc_id
+UUID PRIMARY KEY DEFAULT gen_random_uuid () ,
+filename
+TEXT NOT NULL ,
+doc_type
+TEXT NOT NULL ,
+-- pdf | xlsx | image
+authority_class TEXT NOT NULL DEFAULT ’ Supporting ’ , -- Authoritative |
+Supporting
+status
+TEXT NOT NULL DEFAULT ’ queued ’ ,
+-- queued | parsing |
+parsed |
+-- parse_failed |
+ingested
+page_count
+INTEGER ,
+uploaded_by
+UUID REFERENCES users ( id ) ,
+ingested_at
+TIMESTAMPTZ DEFAULT NOW ()
+);
+CREATE INDEX idx_docreg_status ON document_registry ( status ) ;
+
+Listing 7.1: document_registry schema
+
+27
+
+28
+
+SEEKR Engineering Design Document
+
+Constraints. doc_type and status are application-level enums (checked in Pydantic, not a
+Postgres CHECK constraint, to keep migrations trivial during the build). Indexes. status is
+indexed for the ingestion dashboard’s status polling.
+
+7.4
+
+Table: facts
+
+This is the trust-model table and the single most important schema in the system.
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+
+11
+12
+13
+14
+15
+16
+17
+18
+19
+
+CREATE TABLE facts (
+fact_id
+UUID PRIMARY KEY DEFAULT gen_random_uuid () ,
+subject_tag
+TEXT NOT NULL ,
+predicate
+TEXT NOT NULL ,
+-- free text ; see extended predicate
+-- set in Ch . 6 and Ch . 8
+object_value
+TEXT ,
+object_tag
+TEXT ,
+source_doc_id
+UUID NOT NULL REFERENCES document_registry ( doc_id ) ,
+source_passage JSONB ,
+-- { page , bbox }
+e xtraction_method TEXT ,
+-- RuleBased | NER | LLM | VLM |
+HumanEntry
+confidence
+NUMERIC (4 ,3) ,
+status
+TEXT DEFAULT ’ active ’ , -- active | superseded | disputed
+superseded_by
+UUID REFERENCES facts ( fact_id ) ,
+created_at
+TIMESTAMPTZ DEFAULT NOW ()
+);
+CREATE INDEX idx_facts_subject ON facts ( subject_tag ) ;
+CREATE INDEX idx_facts_status ON facts ( status ) ;
+CREATE INDEX idx_facts_doc
+ON facts ( source_doc_id ) ;
+CREATE INDEX idx_facts_predicate ON facts ( predicate ) ;
+
+Listing 7.2: facts schema
+
+No schema change for specification facts. Because predicate is a free-text column,
+specification-type facts (hasSpec, hasMaterial, operatingTemp, operatingPressure, fitsRange,
+compatibleWith, ratedFor) are written to exactly this table, exactly this way, with object_value
+holding the spec’s literal value (e.g. "4in", "316SS", "150C"). idx_facts_predicate is the
+one addition (Week N, trivial migration) that keeps specification-fact lookups by predicate
+fast at demo scale.
+Implementation notes. Only rows with status=’active’ are ever projected into Neo4j (Chapter 8). A correction workflow (POST /api/entities/{tag}/feedback) inserts a new fact_id
+with extraction_method=’HumanEntry’ and sets the prior row’s status=’superseded’ and
+superseded_by to the new fact_id — an UPDATE plus an INSERT inside a single transaction,
+never a DELETE. Edge cases. A fact whose object_tag does not resolve (Stage 4 of Chapter 6)
+still gets a row, with object_tag left NULL and object_value holding the raw text.
+
+7.5
+1
+2
+3
+
+4
+5
+
+6
+7
+
+Table: entity_registry and entity_aliases
+
+CREATE TABLE entity_registry (
+tag
+TEXT PRIMARY KEY ,
+entity_type TEXT NOT NULL ,
+-- Equipment | FailureMode | MaintenanceAction
+| ...
+display_name TEXT ,
+attributes
+JSONB
+-- type , location , criticality , dimensional
+specs ,
+-- material grade , operating limits , etc .
+);
+
+CHAPTER 7. DATABASE DESIGN
+
+29
+
+8
+9
+10
+11
+12
+13
+
+14
+15
+
+CREATE TABLE entity_aliases (
+alias_id
+UUID PRIMARY KEY DEFAULT gen_random_uuid () ,
+tag
+TEXT NOT NULL REFERENCES entity_registry ( tag ) ,
+alias_text TEXT NOT NULL ,
+source
+TEXT
+-- how the alias was learned : seed | fuzzy |
+embedding
+);
+CREATE INDEX idx_alias_text ON entity_aliases ( alias_text ) ;
+
+Listing 7.3: entity_registry and entity_aliases schema
+
+Used by. Entity Resolution Stage 4 (Chapter 6) for exact and fuzzy matching, and by SEEKR
+Asset’s find_by_type tool (Chapter 11) for pulling candidate components of a given type/subtype
+(e.g. all SparePart rows with attributes.type = ’funnel’). The attributes JSONB column
+was already a catch-all before compositional reasoning was designed in; no migration was required
+to store dimensional specs, material grades, or operating limits there — only a documentation
+update to this section and a convention (below) for how agents read it.
+1
+
+{
+" type " : " funnel " ,
+" fitsRange " : " 3 in -6 in " ,
+" hasMaterial " : " SS316 " ,
+" maxTemp " : " 200 C " ,
+" maxPressure " : " 15 bar "
+
+2
+3
+4
+5
+6
+7
+
+}
+
+Listing 7.4: Convention for specification attributes inside entity_registry.attributes (documentation only,
+no schema change)
+
+7.6
+1
+2
+3
+4
+5
+
+6
+
+Table: users
+
+CREATE TABLE users (
+id
+UUID
+username
+TEXT
+password_hash TEXT
+role
+TEXT
+admin
+);
+
+PRIMARY KEY DEFAULT gen_random_uuid () ,
+UNIQUE NOT NULL ,
+NOT NULL ,
+NOT NULL
+-- technician | engineer | compliance_officer |
+
+Listing 7.5: users schema
+
+Seeded with 3–4 demo accounts per role during Week 1 setup (Chapter 17). Full auth flow in
+Chapter 14.
+
+7.7
+1
+2
+3
+4
+
+5
+6
+7
+8
+9
+10
+
+Table: audit_log
+
+CREATE TABLE audit_log (
+log_id
+BIGSERIAL PRIMARY KEY ,
+actor
+UUID REFERENCES users ( id ) ,
+action
+TEXT NOT NULL ,
+-- e . g . ’ query ’ , ’ agent_invoke ’ , ’
+feedback_submit ’ ,
+-- ’ agent_invoke_cgfr ’
+payload
+JSONB ,
+created_at TIMESTAMPTZ DEFAULT NOW ()
+);
+CREATE INDEX idx_audit_actor ON audit_log ( actor ) ;
+CREATE INDEX idx_audit_created ON audit_log ( created_at ) ;
+
+30
+
+SEEKR Engineering Design Document
+
+Listing 7.6: audit_log schema
+
+Written on every Copilot query, every agent invocation (including CGFR compositional-reasoning
+invocations of SEEKR Asset), and every feedback submission (Chapter 3, FR-AUTH-2). No
+DB-trigger-enforced immutability in the MVP (Chapter 19).
+
+7.8
+
+Lexical search
+
+Postgres full-text search (tsvector) is used in place of a separate lexical search engine.
+1
+2
+
+3
+
+ALTER TABLE facts ADD COLUMN fts tsvector
+GENERATED ALWAYS AS ( to_tsvector ( ’ english ’ , coalesce ( object_value , ’ ’) ) )
+STORED ;
+CREATE INDEX idx_facts_fts ON facts USING GIN ( fts ) ;
+
+Listing 7.7: FTS column and index on facts/document text
+
+Chunk-level text (for passage lexical search) is stored in a chunks table mirroring the Qdrant
+payload, with its own tsvector column and GIN index.
+
+7.9
+
+Migrations
+
+Given the 5-week timeline, schema migrations are managed with a single incrementally-applied
+SQL script per week (migrations/00N_description.sql), applied manually via psql during
+Docker Compose startup. The only migration introduced by this document beyond the original schema is idx_facts_predicate (above); everything else needed for specification facts and
+compositional reasoning is a documentation/prompt-level change, not a database change.
+
+Chapter 8
+Knowledge Graph
+8.1
+
+Purpose and responsibilities
+
+Purpose. Provide a traversable, relational view of active facts, so agents and the graph explorer
+can answer “what is connected to X” questions that passage retrieval cannot, and so that adaptive, context-aware traversal (Chapter 9) and compositional reasoning (Chapter 11, §11.5.4) have
+a rich enough substrate — including specification-level facts — to work from. Responsibilities. Maintain node/edge consistency with the facts table; serve both fixed-depth and adaptive
+relevance-decayed traversal queries within the latency budget (Chapter 4); expose a Cypher query
+surface to the Fabric API. Inputs. Active facts from Postgres (Chapter 7). Outputs. Graph
+query results (paths, subgraphs) to the Fabric API and, through it, to the graph explorer and
+agents.
+
+8.2
+
+Ontology
+
+Entity
+
+Key attributes
+
+Example
+
+Equipment
+
+tag, type, location, criticality, and
+(new) dimensional/material/operating
+attributes when known
+name, description
+type, date, description
+doc_number, revision
+code, requirement text
+type, date, authority_class {Authoritative, Supporting}
+role (name shown only to authorised
+roles)
+part number, spec, and (new) fitrange/material/rating attributes when
+known
+
+Pump P-101A
+
+FailureMode
+MaintenanceAction
+Procedure
+Regulation
+Document
+Personnel
+SparePart
+
+Table 8.1: Core entity types
+
+31
+
+Bearing failure
+Bearing replaced
+SOP-MAINT-042
+OISD-154
+OEM Manual Rev. 3
+Technician
+SKF 6310 bearing, Funnel F-42
+
+32
+
+SEEKR Engineering Design Document
+
+Relationship
+
+Direction
+
+Notes
+
+experiencedFailure
+hasProcedure
+connectedTo
+
+Equipment → FailureMode
+Equipment → Procedure
+Equipment → Equipment
+
+regulatedBy
+addresses
+usesPart
+mentions
+
+Equipment → Regulation
+MaintenanceAction → Equipment
+MaintenanceAction → SparePart
+Document → entity
+
+From maintenance/failure records
+Links equipment to its SOPs
+From P&ID extraction; lower confidence edges
+Used by SEEKR Comply
+Work order to equipment link
+Parts consumption
+Provenance edge, any entity type
+
+Specification-type relationships (integrated for compositional reasoning, §8.2.1):
+hasSpec
+Equipment → spec value
+Dimensional or physical spec (diameter, weight)
+hasMaterial
+Equipment/SparePart → Material Material grade
+operatingTemp
+Equipment → temperature value
+Operating temperature
+operatingPressure Equipment → pressure value
+Operating pressure
+fitsRange
+SparePart → dimension range
+Compatible dimension range for a component
+compatibleWith
+Material → Material/Chemical
+Chemical/galvanic compatibility
+ratedFor
+SparePart → condition limit
+Operating condition rating (max temp,
+max pressure)
+Table 8.2: Core and extended relationships
+
+8.2.1
+
+Extended ontology for compositional reasoning
+
+The relational ontology above (rows 1–7) is exactly what the system needed to answer “what’s
+connected to this equipment” and “what regulation applies to it.” It is not, on its own, enough
+to answer “which spare part is compatible with this equipment,” because a compatible spare part
+and a piece of equipment are frequently never mentioned together in any single document — there
+is no edge to traverse between them. The seven specification-type predicates in the second half
+of the table above close this gap: they let SEEKR record what a piece of equipment needs
+(dimension, material, temperature, pressure) and what a spare part offers (fit range, material,
+rating) as separately extracted, separately cited facts, so that an agent can construct the missing
+link at query time by comparing the two sets rather than requiring the link to already exist in
+the graph (Chapter 11, §11.5.4).
+Design decision
+Extending the predicate set is a prompt-level change to the extraction LLM (Chapter 10) and
+a documentation-level convention for entity_registry.attributes (Chapter 7). It requires
+no Neo4j schema migration (Neo4j is schema-free on relationship types via MERGE) and no new
+entity type — Specification values are stored as scalar properties on existing Equipment
+and SparePart nodes, not as a new node label.
+
+8.3
+1
+2
+3
+4
+5
+
+Neo4j node and edge model
+
+// Node upsert ( subject side ) , keyed by canonical tag
+MERGE ( e : Equipment { tag : $subject_tag })
+ON CREATE SET e . type = $equipment_type , e . location = $location ,
+e . criticality = $criticality
+
+CHAPTER 8. KNOWLEDGE GRAPH
+
+6
+7
+8
+9
+10
+11
+12
+
+33
+
+// Relational edge upsert with confidence and provenance as edge properties
+MATCH ( s { tag : $subject_tag }) , ( o { tag : $object_tag })
+MERGE ( s ) -[ r : EXPERIENCED_FAILURE ] - >( o )
+ON CREATE SET r . fact_id = $fact_id ,
+r . confidence = $confidence ,
+r . source_doc_id = $source_doc_id ,
+r . created_at = datetime ()
+
+13
+14
+
+15
+16
+17
+18
+
+// Specification - type edge upsert -- identical MERGE pattern , new relationship
+type
+MATCH ( e : Equipment { tag : $subject_tag })
+MERGE ( e ) -[ r : HAS_SPEC { property : ’ diameter ’}] - >( v : SpecValue { value : $spec_value })
+ON CREATE SET r . fact_id = $fact_id , r . confidence = $confidence ,
+r . source_doc_id = $source_doc_id
+
+Listing 8.1: Representative node and edge creation on fact projection, including a specification-type edge
+
+Node labels. One label per ontology entity type, each keyed by its canonical tag: Equipment,
+FailureMode, MaintenanceAction, Procedure, Regulation, Document, Personnel, SparePart.
+Specification values are stored either as scalar node properties (e.g. e.diameter = "4in") or,
+where multiple values of the same property type could exist, as lightweight SpecValue nodes
+reached via the specification-type edges above — this is purely an implementation choice made
+per-property during Week 2 and does not affect the API surface described in Chapter 11.
+Edge types. EXPERIENCED_FAILURE, HAS_PROCEDURE, CONNECTED_TO, REGULATED_BY, ADDRESSES,
+USES_PART, MENTIONS, and the specification-type edges HAS_SPEC, HAS_MATERIAL, OPERATING_TEMP,
+OPERATING_PRESSURE, FITS_RANGE, COMPATIBLE_WITH, RATED_FOR. Each edge carries fact_id,
+confidence, and source_doc_id as properties, so any traversal result — relational or specification — traces to the owning Postgres fact row and source passage.
+
+8.4
+
+Graph materialisation (write path)
+
+Trigger. Every time a fact’s status transitions to active (new fact, or a correction accepted), the
+Fabric API (or the ingestion worker, for bulk loads) issues the corresponding MERGE against Neo4j
+— the same write path handles relational and specification-type facts identically. Supersession.
+When a fact is superseded, its corresponding edge is deleted from Neo4j; the superseded fact
+remains queryable in Postgres directly.
+1
+2
+
+MATCH ( s { tag : $subject_tag }) -[ r { fact_id : $old_fact_id }] - >( o )
+DELETE r
+
+Listing 8.2: Removing a superseded fact’s edge
+
+1
+
+2
+3
+
+8.5
+
+Graph traversal (read path)
+
+8.5.1
+
+Fixed-depth traversal (shallow mode)
+
+MATCH path = ( start : Equipment { tag : $tag }) -[: CONNECTED_TO *1..2] -( neighbor :
+Equipment )
+RETURN path
+LIMIT 50
+
+Listing 8.3: k-hop upstream/downstream traversal, depth <= 2 – retained as the fast/shallow path,
+Chapter 9 §9.14
+
+34
+
+1
+2
+
+3
+
+4
+
+SEEKR Engineering Design Document
+
+MATCH ( e : Equipment { tag : $tag }) -[ r : EXPERIENCED_FAILURE ] - >( f : FailureMode )
+OPTIONAL MATCH ( e ) < -[: ADDRESSES ] -( m : MaintenanceAction ) -[: USES_PART ] - >( p : SparePart
+)
+RETURN f . name AS failure_mode , count (*) AS frequency , collect ( DISTINCT p .
+part_number ) AS parts
+ORDER BY frequency DESC
+
+Listing 8.4: Failure-history query used by SEEKR Asset
+1
+2
+3
+
+MATCH ( e : Equipment ) -[: REGULATED_BY ] - >( reg : Regulation { code : $reg_code })
+WHERE NOT ( e ) -[: HAS_PROCEDURE ] - >(: Procedure ) -[: MENTIONS ] - >( reg )
+RETURN e . tag AS equipment , reg . code AS missing_regulation
+
+Listing 8.5: Compliance gap query used by SEEKR Comply
+
+8.5.2
+
+Adaptive, context-aware traversal (full mode)
+
+For diagnostic and open queries, and for agent invocations that ask for “deep” context, the graph
+is explored via the five-phase, best-first, relevance-decayed pipeline described fully in Chapter 9.
+That pipeline is the graph’s primary read path for anything beyond a simple factual lookup; the
+fixed-depth query above is the deliberately-retained fast path, not the default. The full pipeline
+crosses all relationship types — including the specification-type edges introduced in this chapter
+— so that, for example, a shared Regulation node or a shared SparePart node can surface as a
+cross-domain bridge even when it was never directly asked about.
+1
+2
+3
+4
+5
+6
+7
+8
+
+UNWIND $seed_tags AS seed
+MATCH path = ( start { tag : seed }) -[*1..5] -( neighbor )
+WITH neighbor , min ( length ( path ) ) AS min_depth ,
+collect ( DISTINCT type ( relationships ( path ) [ -1]) ) AS rel_types ,
+avg ([ r IN relationships ( path ) | r . confidence ]) AS avg_confidence
+RETURN DISTINCT neighbor . tag AS tag , labels ( neighbor ) [0] AS entity_type ,
+min_depth , rel_types , avg_confidence
+ORDER BY min_depth , avg_confidence DESC LIMIT 200
+
+Listing 8.6: Batched multi-hop neighborhood fetch used by adaptive traversal (Ch. 10) – crosses every
+relationship type, not just CONNECTED_TO
+
+8.6
+
+Confidence model on the graph
+
+Every edge inherits the confidence of the fact that produced it. Text-derived facts (extraction
+via rule-based, NER, or LLM methods, including specification facts pulled from spec tables and
+catalogs) typically carry confidence ≥ 0.8; P&ID-derived CONNECTED_TO edges (VLM extraction)
+are written at ≤ 0.6. The graph explorer visually distinguishes edges below a 0.7 threshold (dashed,
+per Chapter 13) so users can see which connections are inferred versus text-confirmed. During
+adaptive traversal, edge confidence directly modulates how far a relevance score propagates down
+a branch (Chapter 9), so low-confidence P&ID edges naturally receive lower traversal priority
+without any special-case logic.
+
+8.7
+
+Graph updates and refresh
+
+Neo4j is a materialised view, not the system of record — it can be safely rebuilt from Postgres at
+any time by replaying all active facts.
+1
+2
+
+def rebuild_graph () :
+for fact in db . query ( " SELECT * FROM facts WHERE status = ’ active ’" ) :
+
+CHAPTER 8. KNOWLEDGE GRAPH
+
+35
+
+neo4j_session . run ( MERGE_QUERY_FOR ( fact . predicate ) , ** fact . as_params () )
+
+3
+
+Listing 8.7: Full graph rebuild from Postgres (recovery procedure) – identical for relational and
+specification facts
+
+8.8
+
+Edge cases
+
+• A fact whose object_tag is NULL (unresolved object) is not projected as an edge; it remains a
+Postgres-only fact until/unless a later correction resolves it.
+• Two facts asserting the same (subject, predicate, object) from different documents both
+exist in Postgres (different fact_ids) but collapse to one MERGEd edge in Neo4j, with the edge’s
+fact_id property pointing at whichever fact was written last.
+• A specification fact with no matching candidate on the other side (e.g. equipment specs exist
+but no compatible spare part was ever extracted) is not an error condition; SEEKR Asset’s
+compositional reasoning explicitly reports this rather than fabricating a match (Chapter 11,
+§11.5.4).
+
+8.9
+
+Testing
+
+Unit tests assert that a fact insertion produces exactly the expected Cypher MERGE call (mocked
+driver), for both relational and specification-type predicates; integration tests run the actual
+traversal queries above — both fixed-depth and adaptive — against a seeded demo-scale Neo4j
+instance and assert expected node/edge counts. See Chapter 16.
+
+8.10
+
+Expected latency
+
+Fixed-depth (shallow) traversal targets < 300ms P95; adaptive full-pipeline traversal targets <
+500ms P95 total across all five phases (Chapter 9); write-path MERGE calls target sub-100ms per
+fact.
+
+8.11
+
+Dependencies
+
+Neo4j Community (Docker), the official Neo4j Python driver, Postgres (as the upstream source of
+facts).
+
+8.12
+
+Future extension
+
+Ontology versioning, a dedicated Specification node label with typed properties, ClickHouse/DuckDB
+analytical mirrors, and Memgraph are named upgrade paths in Chapter 19, triggered only at data
+volumes far beyond the demo corpus.
+
+Chapter 9
+Retrieval
+9.1
+
+Purpose and responsibilities
+
+Purpose. Given a natural-language query, return the 5–8 passages most likely to support a
+correct, citable answer, by combining three complementary retrieval pathways — graph, vector,
+lexical — rather than relying on vector similarity alone, and by exploring the graph adaptively,
+from a context that spans more than the current query string. This chapter is the detailed implementation of the retrieval half of Figure 5.1 (Section 5.1) and of the “Contextual Retrieval” pillar
+in Chapter 2. Responsibilities. Query classification; context assembly; adaptive graph traversal;
+parallel pathway execution; fusion; re-ranking; chunking policy; citation-resolution validation.
+What changed, and why it lives here
+Earlier exploratory work considered a rigid Neo4j CONNECTED_TO *1..2 traversal seeded only
+by entities named in the current query. That approach produced three concrete failure modes
+documented in Table 9.1 below. The fix is not a new retrieval system; it is a richer implementation of the same graph_pathway() function that already feeds the same fusion step.
+Nothing about the request lifecycle (Section 5.8), the fusion weights, or the re-ranker changes
+— only how the graph pathway itself decides what to explore.
+
+9.1.1
+
+Why a fixed hop count was not enough
+
+Failure mode
+
+Example
+
+Why a fixed hop count misses
+it
+
+Disconnected relevance
+
+User asks about P-101A; Pump P201B (a different system) had an
+identical bearing failure last year,
+structurally 5+ hops away
+User has been discussing cooling
+systems for 4 messages, then asks
+“what about the valve?” with no
+entity named
+A regulation (OISD-154) connects
+two equipment clusters through
+regulatedBy edges
+
+Fixed depth=2 never reaches it
+
+Implicit context
+
+Cross-domain bridges
+
+Zero seed entities extracted → the
+pathway returns empty
+A CONNECTED_TO-only traversal ignores every other relationship type
+
+Table 9.1: Failure modes of a fixed-depth, query-only graph traversal
+
+36
+
+CHAPTER 9. RETRIEVAL
+
+9.2
+
+37
+
+Chunking
+
+Policy. Structure-aware, parent–child chunking derived directly from Docling’s element boundaries (headings, paragraphs, table rows), capped at 512 tokens per child chunk, with the parent
+(e.g. the enclosing section) retrievable for additional context when a child chunk is selected.
+Output schema (Qdrant payload).
+1
+
+{
+" chunk_id " : " uuid " ,
+" doc_id " : " uuid " ,
+" parent_chunk_id " : " uuid | null " ,
+" page " : 12 ,
+" bbox " : [ x0 , y0 , x1 , y1 ] ,
+" authority_class " : " Authoritative " ,
+" text " : " ... "
+
+2
+3
+4
+5
+6
+7
+8
+9
+
+}
+
+Listing 9.1: Chunk payload schema
+
+9.3
+
+Query classification
+
+Purpose. Tag each query so pathway weights, and the traversal depth mode below, can be set
+without a trained classifier. Algorithm. A keyword/regex pre-filter checks for diagnostic markers
+(“why”, “keeps failing”, “root cause”), procedural markers (“how do I”, “steps to”), factual markers
+(“what is”, “when was”), and compositional/component-selection markers (“which X should I use
+for”, “is X compatible with”, “what fits”); ambiguous queries fall through to a single cheap LLM
+classification call returning one of {factual, diagnostic, procedural, open}. A compositional marker
+does not introduce a fifth query-type value; it is used purely as an agent-routing signal (Chapter 11)
+— retrieval-side, a compositional question is treated as open, since it benefits from the same broad,
+structurally-enriched context. Why not a learned classifier. No labelled training data and no
+time to build one exist for this timeline; the rule-based router with an LLM fallback gives the
+same architectural story — adaptive fusion weights — with zero ML-training dependency.
+
+9.4
+
+Context Assembly
+
+Goal. Build a rich seed set from more than just the current query string, so that the implicitcontext failure mode in Table 9.1 cannot occur.
+Source
+
+What it provides
+
+Cost
+
+Current query
+
+Explicit entity mentions (via
+existing entity resolution,
+Chapter 6)
+Previously discussed entities
+and their resolved tags
+If the user clicked a node in the
+graph explorer, that node’s tag
+
+Already exists
+
+Chat history (last 5 messages)
+Active document context
+Query classification
+
+New: parse session_id → last
+5 messages
+New:
+frontend
+sends
+focused_tag in the query
+payload
+The
+Already exists
+factual/diagnostic/procedural/open
+tag
+
+Table 9.2: Inputs to context assembly
+
+38
+
+1
+2
+3
+4
+5
+6
+
+SEEKR Engineering Design Document
+
+@dataclass
+class TraversalContext :
+explicit_tags : list [ str ]
+implicit_tags : list [ str ]
+query_type : QueryType
+query_embedding : list [ float ]
+
+#
+#
+#
+#
+
+from current query entity resolution
+from chat history + focused node
+from classify_query ()
+for relevance scoring during traversal
+
+7
+8
+9
+10
+11
+
+async def assemble_context (
+query : str , session_id : str , focused_tag : str | None
+) -> TraversalContext :
+explicit = resolve_entities ( query )
+
+12
+
+history = await get_recent_messages ( session_id , limit =5)
+history_tags = set ()
+for msg in history :
+history_tags . update ( resolve_entities ( msg . text ) )
+
+13
+14
+15
+16
+17
+
+implicit = list ( history_tags - set ( explicit ) )
+if focused_tag and focused_tag not in explicit :
+implicit . insert (0 , focused_tag )
+
+18
+19
+20
+21
+
+return TraversalContext (
+explicit_tags = explicit ,
+implicit_tags = implicit [:5] ,
+# cap to prevent context explosion
+query_type = await classify_query ( query ) ,
+query_embedding = await embed ( query ) ,
+)
+
+22
+23
+24
+25
+26
+27
+
+Listing 9.2: Context assembly (Phase 1 of the graph pathway)
+
+API change. The existing POST /api/query payload gains one optional field, sent automatically
+by the frontend whenever a node is selected in the graph explorer (Chapter 13):
+1
+2
+3
+4
+
+{
++
++
+
+" query " : " Why does P -101 A keep failing ? " ,
+" session_id " : "s -88 a2 " }
+" session_id " : "s -88 a2 " ,
+" focused_tag " : "P -101 A " }
+
+Listing 9.3: Query payload, before and after
+
+9.5
+
+Seed Expansion
+
+Goal. Turn the assembled context into a broader, ranked set of seed nodes, without relying solely
+on direct entity mentions.
+Strategy A — Direct Seeds. Every tag in explicit_tags and implicit_tags becomes a seed
+node.
+Strategy B — Embedding-Nearest Nodes. Reuse the vector pathway’s own Qdrant search:
+query for the top-10 nearest chunks, extract subject_tag/object_tag from the facts table for
+those chunks’ source documents, and add those tags as expansion seeds. This catches semantically
+relevant nodes the user didn’t name, at essentially no additional cost since the same Qdrant search
+is also run for the vector pathway.
+1
+2
+3
+4
+5
+6
+
+async def embedding_expand ( query_embedding : list [ float ]) -> list [ str ]:
+chunks = await qdrant_search ( query_embedding , top_k =10)
+doc_ids = [ c . payload [ " doc_id " ] for c in chunks ]
+rows = await db . fetch ( " " "
+SELECT DISTINCT subject_tag FROM facts
+WHERE source_doc_id = ANY ( $1 ) AND status = ’ active ’ LIMIT 10
+
+CHAPTER 9. RETRIEVAL
+
+39
+
+" " " , doc_ids )
+return [ r [ " subject_tag " ] for r in rows ]
+
+7
+8
+
+Listing 9.4: Embedding-based seed expansion (Phase 2, Strategy B) – reuses the vector pathway’s Qdrant
+search
+
+Strategy C — Type-Based Expansion. For diagnostic queries, also pull equipment of the
+same type as the primary seed, to find analogous failure patterns:
+1
+2
+3
+4
+
+MATCH ( seed : Equipment { tag : $tag })
+MATCH ( sibling : Equipment )
+WHERE sibling . type = seed . type AND sibling . tag <> seed . tag
+RETURN sibling . tag LIMIT 5
+
+Listing 9.5: Type-based seed expansion (Phase 2, Strategy C)
+
+Ranking. All expanded seeds are scored:
+
+score(seed) = wexplicit ·is_explicit+wembedding ·embedding_similarity+wtype ·type_match+wrecency ·recency_in_ch
+Weights vary by query type (diagnostic queries weight wtype higher; factual queries weight wexplicit
+higher). Only the top 15 seeds proceed to adaptive traversal.
+
+9.6
+
+Adaptive Traversal
+
+Goal. Explore the graph outward from seeds with dynamic depth, stopping when information becomes irrelevant rather than at a hardcoded hop limit — this is what closes both the
+disconnected-relevance and the cross-domain-bridge failure modes in Table 9.1.
+Instead of *1..2, the pathway uses a best-first traversal with a decaying relevance score.
+Traversal along a branch stops when the score drops below a threshold; the whole traversal is
+bounded by a hard node budget so latency stays predictable regardless of graph density.
+1
+2
+3
+4
+5
+
+async def adaptive_traverse (
+seeds : list [ RankedSeed ] , query_embedding : list [ float ] ,
+max_depth : int = 5 , relevance_threshold : float = 0.3 , max_nodes : int = 50 ,
+) -> list [ ScoredNode ]:
+visited , frontier = {} , [( s . tag , 0 , s . score ) for s in seeds ]
+
+6
+7
+8
+9
+10
+11
+
+while frontier and len ( visited ) < max_nodes :
+frontier . sort ( key = lambda x : -x [2])
+tag , depth , parent_score = frontier . pop (0)
+if tag in visited or depth > max_depth :
+continue
+
+# best - first
+
+12
+13
+14
+15
+
+node_text = await get_node_text ( tag )
+# cached
+semantic_sim = cosine_similarity ( query_embedding , await embed ( node_text ) )
+node_score = 0.5 * parent_score * 0.7 + 0.5 * semantic_sim #
+DECAY_FACTOR =0.7
+
+16
+17
+18
+19
+
+if node_score < relevance_threshold and depth > 1:
+continue
+# prune this branch
+visited [ tag ] = ScoredNode ( tag = tag , score = node_score , depth = depth )
+
+20
+21
+22
+23
+24
+
+25
+
+for neighbor_tag , rel_type , confidence in await get_neighbors ( tag ) :
+if neighbor_tag not in visited :
+# edge confidence modulates the propagated score
+frontier . append (( neighbor_tag , depth + 1 , node_score * confidence
+))
+
+40
+
+SEEKR Engineering Design Document
+
+return sorted ( visited . values () , key = lambda n : -n . score )
+
+26
+
+Listing 9.6: Adaptive, relevance-decayed traversal (Phase 3)
+
+Design decision
+
+Rationale
+
+Best-first, not breadth-first
+
+Explores the most promising branches first within the
+node budget
+Crosses
+CONNECTED_TO,
+experiencedFailure,
+regulatedBy, hasProcedure, and every specificationtype edge (Chapter 8) — solving the cross-domain
+bridge problem
+P&ID-derived edges (confidence ≤ 0.6) naturally get
+less traversal priority than text-confirmed edges (≥ 0.8),
+with no special-case logic
+Guarantees latency stays bounded regardless of graph
+density
+At depth 3, parent contribution is 0.73 ≈ 0.34 of original
+— past this, a node must have high semantic similarity
+to survive
+
+All relationship types
+
+Edge confidence as propagation weight
+Hard cap of 50 nodes
+DECAY_FACTOR = 0.7
+
+Table 9.3: Key design decisions in adaptive traversal
+
+Batched Cypher implementation. Rather than running N individual Cypher queries, the
+multi-hop neighbourhood for all seeds is fetched in one call and scored in Python (query shown
+in Chapter 8); this keeps Cypher execution to a single round trip (≤ 100ms at demo scale) and
+moves the intelligence to application code, which is easier to tune and test under a 5-week clock
+than equivalent logic embedded in Cypher.
+
+9.7
+
+Structural Enrichment
+
+Goal. Discover macro-patterns that per-node traversal misses — shortest paths between seed
+clusters, and lightweight community detection — and only pay for this when the query type
+actually benefits from it.
+Multi-seed shortest paths. When the context has multiple seeds from different parts of the
+graph, the connecting path between them often contains the most relevant intermediate nodes:
+1
+2
+3
+4
+5
+6
+
+MATCH path = shortestPath (
+( a { tag : $tag_a }) -[*..6] -( b { tag : $tag_b })
+)
+RETURN [ n IN nodes ( path ) | n . tag ] AS path_tags ,
+length ( path ) AS path_length ,
+[ r IN relationships ( path ) | type ( r ) ] AS rel_types
+
+Listing 9.7: Shortest path between a pair of explicit seeds
+1
+
+2
+3
+4
+5
+6
+7
+
+async def find_bridge_nodes ( explicit_tags : list [ str ] , already_found : set [ str ]) ->
+list [ str ]:
+bridges = Counter ()
+for tag_a , tag_b in combinations ( explicit_tags , 2) :
+path = await neo4j_shortest_path ( tag_a , tag_b , max_depth =6)
+if path :
+for tag in path [1: -1]:
+# exclude endpoints
+bridges [ tag ] += 1
+
+CHAPTER 9. RETRIEVAL
+
+41
+
+return [ t for t , _ in bridges . most_common (10) if t not in already_found ]
+
+8
+
+Listing 9.8: Bridge-node discovery (Phase 4a)
+
+Lightweight hub detection. Rather than a full Neo4j GDS Enterprise license (explicitly excluded, Chapter 19), the MVP approximates community structure with a degree-based heuristic:
+nodes with high local connectivity in a seed’s neighbourhood are likely community hubs worth
+including.
+1
+2
+3
+4
+5
+
+MATCH ( seed { tag : $tag }) -[*1..3] -( member )
+WITH member , count (*) AS connections
+WHERE connections >= 3
+RETURN member . tag , labels ( member ) [0] , connections
+ORDER BY connections DESC LIMIT 5
+
+Listing 9.9: Degree-based hub detection (Phase 4b), no GDS license required
+
+Query type
+
+Shortest paths?
+
+Hub detection?
+
+Rationale
+
+Factual
+Diagnostic
+Procedural
+
+No
+Yes
+No
+
+No
+Yes
+Yes (light)
+
+Open
+
+Yes
+
+Yes
+
+Usually answered by direct neighbours
+Root causes often span systems
+Procedures often reference hub equipment
+Exploratory queries benefit most from
+broad context
+
+Table 9.4: When structural enrichment runs
+
+9.8
+
+Passage Synthesis
+
+Scored nodes and paths are converted into synthetic passages and injected into the same fusion
+pipeline used by vector and lexical retrieval:
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+
+def node_to_passage ( node : ScoredNode , edges : list [ Edge ]) -> SyntheticPassage :
+lines = [ f " { node . tag } ({ node . entity_type }) : " ]
+for edge in edges :
+lines . append (
+f " - { edge . rel_type } -> { edge . target_tag } "
+f " [ confidence : { edge . confidence :.2 f } , source : { edge . source_doc_id }] "
+)
+return SyntheticPassage (
+chunk_id = f " graph -{ node . tag } " , text = " \ n " . join ( lines ) , score = node . score ,
+source = " graph_traversal " , fact_ids =[ e . fact_id for e in edges ] ,
+)
+
+Listing 9.10: Node-to-passage conversion (Phase 5)
+1
+2
+3
+4
+5
+6
+
+async def graph_pathway (
+query : str , query_type : QueryType , session_id : str , focused_tag : str | None ,
+) -> list [ Chunk ]:
+ctx = await assemble_context ( query , session_id , focused_tag )
+seeds = await expand_seeds ( ctx )
+traversed = await adaptive_traverse ( seeds , ctx . query_embedding )
+
+7
+8
+9
+
+10
+
+if query_type in ( QueryType . DIAGNOSTIC , QueryType . OPEN ) :
+bridges = await find_bridge_nodes ( ctx . explicit_tags , { n . tag for n in
+traversed })
+hubs = await detect_hubs ( ctx . explicit_tags )
+
+42
+
+SEEKR Engineering Design Document
+
+traversed . extend ( bridges + hubs )
+
+11
+12
+
+passages = []
+for node in traversed [:20]:
+edges = await get_node_edges ( node . tag )
+passages . append ( node_to_passage ( node , edges ) )
+return passages # feeds into fuse () alongside vector and lexical hits
+
+13
+14
+15
+16
+17
+
+Listing 9.11: The complete, integrated graph pathway — what graph_pathway() now does end to end
+
+The cross-encoder re-ranker (below) scores these graph-derived passages against the query alongside vector and lexical candidates — the best ones rise to the top 5–8 chunks sent to generation,
+exactly as before.
+
+9.9
+
+Fusion weights
+
+Query type
+
+Graph weight
+
+Vector weight
+
+Lexical weight
+
+Factual
+Diagnostic
+Procedural
+Open
+
+Low
+High
+High
+Low
+
+Medium
+Medium
+High
+High
+
+High
+Low
+Low
+Medium
+
+Table 9.5: Query-type → pathway weight lookup table
+
+Implementation. A simple Python dict keyed by query type maps to numeric weights applied
+when merging each pathway’s normalised score before re-ranking; the table itself is the entire
+“model” — no training loop, no persisted weights file.
+
+9.10
+
+The three pathways
+
+Pathway
+
+Implementation
+
+Graph traversal
+
+The five-phase context-aware pipeline above (context assembly, seed expansion, adaptive traversal, structural enrichment, passage synthesis), or the
+fixed-depth shallow mode (§9.14) for factual queries
+Qdrant search over the query embedding (same embedding model as ingestion), top 20 candidates
+Postgres FTS (tsquery against the chunks.fts column) or an in-process
+rank_bm25 index, top 20 candidates
+
+Vector similarity
+Lexical/BM25
+
+Table 9.6: The three retrieval pathways
+
+9.11
+
+Merge and re-ranking
+
+Algorithm. Candidates from all three pathways are deduplicated by chunk_id (graph-derived
+synthetic passages get their own IDs), combined into a single candidate pool (target ∼20–30
+after dedup), and passed through a local cross-encoder (bge-reranker class model, running on
+CPU/GPU locally, no external API call) which scores each (query, passage) pair; the top 5–8
+by cross-encoder score are selected for generation. Why local, not an LLM call. A crossencoder re-rank is cheaper, faster, and more deterministic than scoring candidates with an LLM,
+and needs no extra API dependency.
+
+CHAPTER 9. RETRIEVAL
+
+9.12
+
+43
+
+Generation and citation
+
+Prompting. The frontier-tier model is given the 5–8 selected chunks, each tagged with a stable
+[doc_id:passage_id] identifier, and instructed to cite every factual sentence with exactly one
+such tag, and to explicitly say “not found in the provided sources” rather than answer from
+parametric knowledge when the passages do not support an answer. Citation-resolution check.
+After generation, a regex extracts every [doc_id:passage_id] tag in the output and checks it
+against the set of tags that were actually provided in the prompt; any tag that does not resolve
+triggers exactly one regeneration attempt with an explicit reminder of the valid tag set. A second
+failure surfaces the answer with the unresolved sentence flagged in the UI rather than silently
+dropped. Faithfulness. Enforced by the prompt instruction above plus one self-check LLM pass
+on the finished answer; sentences failing the self-check are removed before the answer is returned.
+No separate NLI entailment model is hosted.
+
+9.13
+1
+
+Interfaces
+
+async def classify_query ( query : str ) -> QueryType : ...
+
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+
+12
+
+async def retrieve (
+query : str , query_type : QueryType , session_id : str , focused_tag : str | None ,
+) -> list [ Chunk ]:
+graph_hits , vector_hits , lexical_hits = await asyncio . gather (
+graph_pathway ( query , query_type , session_id , focused_tag ) ,
+vector_pathway ( query ) ,
+lexical_pathway ( query ) ,
+)
+fused = fuse ( graph_hits , vector_hits , lexical_hits , weights = FUSION_WEIGHTS [
+query_type ])
+return rerank ( query , fused ) [:8]
+
+13
+14
+15
+16
+17
+18
+
+async def generate_answer ( query : str , chunks : list [ Chunk ]) -> CitedAnswer :
+draft = await frontier_llm . generate ( prompt ( query , chunks ) )
+if not citations_resolve ( draft , chunks ) :
+draft = await frontier_llm . generate ( prompt ( query , chunks , strict = True ) )
+return self_check ( draft , chunks )
+
+Listing 9.12: Retrieval module interface (conceptual)
+
+9.14
+
+Retained fast path: shallow traversal mode
+
+The original fixed-depth CONNECTED_TO *1..2 query is not deleted. It is kept as an explicit
+depth="shallow" mode of the graph pathway, used for two purposes: (1) a low-latency fast path
+for factual queries, where the context-aware pipeline’s structural enrichment phase would add cost
+without adding relevant results, and (2) a fallback if the adaptive pipeline itself times out under
+its latency budget. This is why FR-RAG-10 (Chapter 3) exists as an explicit requirement, not an
+implicit assumption.
+
+9.15
+
+Edge cases
+
+• Query mentions no resolvable entity and chat history and the focused node are both empty:
+seed expansion still runs Strategy B (embedding-nearest) so the pathway does not necessarily
+return empty, unlike the old fixed-depth-only design.
+• All three pathways return low-relevance results (below a minimum score threshold): the answer
+explicitly states low confidence rather than forcing a citation onto a weak passage.
+
+44
+
+SEEKR Engineering Design Document
+
+• A pathway times out: dropped from fusion, not blocking.
+• Structural enrichment exceeds its 150ms budget (Chapter 4): dropped; adaptive traversal’s
+own results still proceed to passage synthesis.
+
+9.16
+
+Testing
+
+Retrieval accuracy is measured against 15–20 hand-written test queries with known correct source
+documents (precision@5), including at least 3 queries specifically designed to exercise implicit
+context (no named entity) and cross-domain bridges, per Chapter 15. Citation-resolution logic
+has unit tests covering: all tags resolve, one tag fails and regenerates successfully, one tag fails twice
+and is flagged. Adaptive traversal has unit tests covering: relevance decay pruning, node-budget
+enforcement, and edge-confidence propagation.
+
+9.17
+
+Performance budget
+
+Phase
+
+Target
+
+Technique
+
+Context Assembly
+
+< 30ms
+
+Seed Expansion
+Adaptive Traversal
+Structural Enrichment
+Passage Synthesis
+Total (diagnostic/open)
+Total (factual, shallow mode)
+
+< 80ms
+< 150ms
+< 150ms
+< 20ms
+< 430ms
+∼ 280ms
+
+In-memory session lookup + cached entity resolution
+Reused Qdrant search + single Postgres query
+Single batched Cypher + Python scoring
+2–3 shortest-path queries (diagnostic/open only)
+Pure string formatting
+Within the 500ms graph-pathway budget
+Comparable to the original fixed-depth query
+
+Table 9.7: Context-aware retrieval performance budget
+
+9.18
+
+What this does NOT require
+
+Excluded
+
+Why
+
+Microsoft GraphRAG community summarisation
+
+Requires hours of offline LLM compute to
+cluster and summarise — incompatible with
+a 5-week hackathon (Chapter 19)
+Label propagation is approximated with the
+degree-based hub heuristic above; no GDS licence needed
+Qdrant chunk embeddings are reused directly,
+mapped to entity tags via the facts table
+Everything above runs inside the existing
+FastAPI process using the existing Neo4j,
+Qdrant, and Postgres
+All enrichment above is query-time; no batch
+jobs beyond existing ingestion
+
+Neo4j GDS Enterprise
+A separate node embedding index
+A new database or service
+Offline pre-computation
+
+Table 9.8: Deliberately excluded approaches, and their roadmap trigger
+
+CHAPTER 9. RETRIEVAL
+
+9.19
+
+45
+
+Dependencies
+
+Neo4j, Qdrant, Postgres, the embedding model, the local cross-encoder, the fast-tier LLM (query
+classification), the frontier-tier LLM (generation, self-check).
+
+9.20
+
+Future extension
+
+A learned, offline-trained pathway-weighting classifier is the named upgrade once enough logged
+query/relevance data exists (Chapter 19); a separate NLI faithfulness model, full Neo4j GDS
+community detection, and Microsoft GraphRAG-style offline summarisation are similar future
+triggers, all recorded in Chapter 19.
+
+Chapter 10
+AI Models
+10.1
+
+Two-tier routing
+
+Exactly two model tiers, called directly via their SDKs (no LiteLLM abstraction in the MVP): a
+fast/cheap tier for bulk extraction and classification, and a frontier tier for anything a judge or
+user actually reads — including compositional reasoning output.
+
+Task
+
+Tier
+
+Notes
+
+Bulk
+entity/relation/spec
+extraction
+Query-type
+classification
+Copilot answer
+generation
+SEEKR Diagnose /
+Comply synthesis
+SEEKR Asset
+compositional
+reasoning (constraint
+extraction,
+compatibility
+filtering, justified
+selection)
+P&ID structured
+extraction
+Re-ranking
+
+Fast/cheap
+
+JSON-schema-constrained output against the extended predicate set (Chapter 8); one call per chunk
+at ingest time
+Single short call, or a regex/keyword pre-filter with
+the LLM as fallback
+Grounding and citation faithfulness matter most
+
+Voice transcription
+(optional)
+
+Fast/cheap
+Frontier
+Frontier
+Frontier
+
+Frontier,
+multimodal
+Local
+cross-encoder
+(no LLM call)
+Whisper API /
+Web Speech
+API
+
+Multi-document reasoning benefits materially from a
+stronger model; call volume is low
+Multi-attribute logical reasoning over structured
+specs; the same model tier already used for Diagnose/Comply, invoked via a different tool set and
+prompt (Chapter 11)
+
+One call per drawing image
+Cheaper and more deterministic
+Only if the voice-input stretch goal is reached
+
+Table 10.1: Task-to-model mapping
+
+46
+
+CHAPTER 10. AI MODELS
+
+10.2
+
+47
+
+Why every model exists
+
+• Fast-tier model. Keeps ingestion cost and latency bounded across hundreds of documents
+and thousands of chunks, whether extracting a relational fact or a specification fact.
+• Frontier-tier model. The visible product — Copilot answers, agent conclusions, and compositional recommendations — is judged directly on grounding quality and reasoning correctness;
+this is not a place to economise.
+• Frontier multimodal. P&ID symbol/adjacency extraction needs vision understanding a fasttier text model cannot provide.
+• Local cross-encoder. Avoids paying LLM latency/cost for a task a small, purpose-built
+model does deterministically and fast.
+• Embedding model. One model, both query and document side, reused for vector retrieval,
+graph seed expansion, and entity resolution’s embedding-fallback stage.
+
+10.3
+
+Expected input/output per task
+
+Task
+
+Input
+
+Output
+
+Bulk extraction
+
+One chunk of parsed
+text + extended ontology
+schema
+
+Query classification
+
+Raw query string
+
+Copilot generation
+
+Query + 5–8 ranked
+chunks with tags
+Graph query results + retrieved passages
+
+JSON list of {subject,
+predicate, object, confidence} triples, predicate
+drawn from the extended
+set
+One of {factual, diagnostic, procedural, open}
+Cited prose answer
+
+Agent synthesis (Diagnose/Comply)
+SEEKR Asset compositional reasoning
+
+Target entity’s specs +
+candidate entities’ specs
+
+P&ID extraction
+
+Drawing image
+
+Structured
+hypothesis/score + narrative
+explanation
+Constraint list,
+percandidate pass/fail table,
+cited recommendation
+JSON {symbols[], adjacency_pairs[]}
+
+Table 10.2: Expected input/output shape per task
+
+10.4
+
+Prompt strategy
+
+All structured-output prompts follow the same shape: (1) a system instruction naming the exact
+JSON schema and forbidding prose outside it; (2) the extended ontology or tag set as in-context
+reference data, never left to the model’s parametric knowledge; (3) an explicit instruction to omit
+rather than guess when a field cannot be determined from the given text; (4) for generation tasks,
+an explicit citation-tag instruction and an explicit “say so if unsupported” instruction (Chapter 9);
+(5) for compositional reasoning specifically, an explicit instruction to never guess a specification
+value and to state “not found in available documents” rather than assume a default (Chapter 11,
+§11.5.4).
+
+48
+
+SEEKR Engineering Design Document
+
+10.5
+1
+
+{
+" type " : " object " ,
+" properties " : {
+" triples " : {
+" type " : " array " ,
+" items " : {
+" type " : " object " ,
+" properties " : {
+" subject " : { " type " : " string " } ,
+" predicate " : { " type " : " string " , " enum " : [
+" experiencedFailure " , " hasProcedure " , " connectedTo " ,
+" regulatedBy " , " addresses " , " usesPart " , " mentions " ,
+" hasSpec " , " hasMaterial " , " operatingTemp " ,
+" operatingPressure " , " fitsRange " , " compatibleWith " , " ratedFor " ]} ,
+" object " : { " type " : " string " } ,
+" confidence " : { " type " : " number " , " minimum " : 0 , " maximum " : 1}
+},
+" required " : [ " subject " , " predicate " , " object " , " confidence " ]
+}
+}
+},
+" required " : [ " triples " ]
+
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+
+JSON schema example: bulk extraction (extended)
+
+}
+
+Listing 10.1: Structured extraction output schema, extended with specification-type predicates
+
+10.6
+
+Does compositional reasoning need fine-tuning?
+
+No — not for the MVP. Every capability SEEKR Asset’s compositional reasoning mode
+needs is already within reach of a frontier general-purpose model, zero-shot. The real bottleneck
+is extraction coverage, not reasoning sophistication: see the warning box at the end of this section,
+and Chapter 11 §11.5.4 for how this plays out inside the agent.
+Capability
+
+Zero-shot capable?
+
+Notes
+
+Decompose a query into spec dimensions
+Extract structured values from spec
+tables
+Compare spec sets for compatibility
+
+Yes
+
+Basic engineering reasoning
+
+Yes
+
+Already used in extraction (Chapter 6)
+Logical comparison — frontier
+LLMs are strong at this
+Common pairs are well represented
+in training data; obscure ones may
+not be
+Institutional knowledge that was
+never in training data and is not in
+the demo corpus either
+
+Yes
+
+Common material–chemical compatibility
+
+Mostly
+
+Company-specific selection rules
+
+No
+
+Table 10.3: Zero-shot readiness of compositional reasoning capabilities
+
+CHAPTER 10. AI MODELS
+
+49
+
+Problem (post-MVP)
+
+MVP alternative (no fine-tuning)
+
+Company-specific selection rules
+
+Encode as facts in the KG via a selectionRule
+relationship type (Chapter 19)
+Add a compatibility lookup table as an agent
+tool (Chapter 19)
+Normalise specs at extraction time (preprocessing, not model-level)
+
+Material compatibility hallucination
+Industrial
+“DN100”)
+
+spec-format
+
+misreads
+
+(“4in”
+
+vs
+
+Table 10.4: Where fine-tuning would help post-MVP, and the MVP alternative used instead
+
+The real bottleneck is extraction, not reasoning. If the ingestion pipeline (Chapter 6)
+never extracts “P-301 has inner diameter 4 inches” as a structured specification fact, no amount
+of query-time reasoning sophistication in SEEKR Asset will find it. The single highestimpact change made for compositional reasoning is enriching the extraction predicate set
+(Chapter 6), not the reasoning chain itself (Chapter 11, §11.5.4).
+
+10.7
+
+Failure handling
+
+Malformed JSON output is retried once with a stricter schema reminder; persistent malformed
+output is logged and the chunk/document skipped rather than blocking the pipeline. Frontier-tier
+timeouts on Copilot generation, or on compositional reasoning steps, retry once before surfacing
+a degraded response (Chapter 4).
+
+10.8
+
+Cost and latency management
+
+Bulk extraction cost scales with chunk count, not document count. Adding specification-type
+predicates to the extraction schema does not change this scaling — it is the same one call per
+chunk, now capable of returning a richer set of triples per call, so the extended predicate set is
+essentially free in terms of extraction cost.
+
+10.9
+
+Dependencies
+
+Direct SDK access to one fast-tier and one frontier-tier LLM provider, one multimodal-capable
+frontier model, one open embedding model (or provider embedding endpoint), one local crossencoder checkpoint.
+
+10.10
+
+Future extension
+
+LiteLLM abstraction for provider-agnostic routing, and a third/fourth tier, are named Could /roadmap
+items (Chapter 19).
+
+Chapter 11
+Agent Design
+11.1
+
+Pattern: LangGraph Supervisor → three workers
+
+The multi-agent system is built with LangGraph’s native supervisor–worker pattern, exactly three
+workers, unchanged in count and shape by the addition of compositional reasoning: the fourworker v2 design (Maintenance, RCA, Compliance, Lessons-Learned) was merged to three early
+in design, since Maintenance and Lessons-Learned both mine work-order/failure history over the
+same underlying graph query, one framed forward and one framed backward.
+
+Supervisor
+(LangGraph)
+SEEKR Asset
+(QA, history,
+
+recommendation,
+CGFR)
+
+SEEKR Diagnose
+
+SEEKR Comply
+
+Figure 11.1: Supervisor–worker agent architecture — unchanged shape; SEEKR Asset’s tool set is
+extended, no fourth worker is introduced
+
+50
+
+CHAPTER 11. AGENT DESIGN
+
+11.2
+
+51
+
+Table of workers
+
+Engineering
+name
+
+Product name
+
+Job
+
+Asset Intelligence
+(merged
+Maintenance +
+Lessons-Learned;
+now also
+Compositional
+Reasoning)
+Root Cause
+Analysis
+
+SEEKR
+Asset
+
+Mines work-order and failure history for a given tag;
+surfaces recurring failure modes, frequency-based risk
+scoring, pattern-matches against similar past incidents; and answers component-selection / compatibility / specification-comparison questions via the CGFR
+reasoning pattern (§11.5.4)
+
+SEEKR
+Diagnose
+
+Compliance
+
+SEEKR
+Comply
+
+Plan-then-execute: pulls depth-bounded equipment
+context, generates ranked causal hypotheses with evidence citations, then self-critiques and discards unsupported hypotheses
+Checks ∼10–15 curated regulation clauses against
+equipment inspection/procedure facts; flags gaps and
+names missing evidence
+
+Table 11.1: The three SEEKR workers
+
+The Copilot (Chapter 9) is not a fourth worker; it remains the default query path (SEEKR
+Ask).
+
+11.3
+
+Supervisor: responsibilities and decision flow
+
+Purpose. Route an incoming query or explicit invocation to exactly one worker, or to no worker
+(handled directly by Copilot). Decision flow.
+1. Explicit invocation (e.g. POST /api/agents/diagnose) routes directly to the named worker,
+bypassing routing logic.
+2. An implicit trigger from a Copilot query classified diagnostic and matching a root-cause pattern
+routes to SEEKR Diagnose asynchronously.
+3. A query about historical patterns, forward risk, or component selection/compatibility/specification
+comparison routes to SEEKR Asset — the same worker handles all four, distinguished
+only by which internal tools and prompt branch it invokes (§11.5).
+4. A query naming a regulation or asking about compliance status routes to SEEKR Comply.
+5. No match: Copilot answers directly, no worker invoked.
+Implementation. A LangGraph graph with the Supervisor as the entry node, using a single fasttier LLM routing call (given the query, the query classification from Chapter 9, and short worker
+descriptions — including a description of SEEKR Asset’s compositional-reasoning capability)
+to pick the destination node, or a rule match on the explicit-invocation endpoints to skip the LLM
+call entirely.
+
+52
+
+SEEKR Engineering Design Document
+
+11.4
+
+Autonomy tiers
+
+Tier
+
+Behaviour
+
+Tier 1 — Respond
+
+Read-only; answers, hypotheses, and compositional recommendations shown
+directly to the user; logged to audit_log.
+A maintenance-hold suggestion or a compliance-gap flag is shown in the UI
+with a “proposed — requires review” badge and a confirm/dismiss button,
+gated by role. No auto-execute tier exists in the MVP; a compositional
+recommendation is always Tier 1, never auto-ordered or auto-procured.
+
+Tier 2 — Propose
+
+Table 11.2: Two autonomy tiers, no policy-engine microservice
+
+Each worker is capped at a small fixed number of tool calls, reducing the entire “circuit breaker”
+concern to a single max_iterations parameter in LangGraph.
+
+11.5
+
+SEEKR Asset
+
+11.5.1
+
+Four capabilities, one worker
+
+SEEKR Asset supports four distinct question shapes without becoming four different agents:
+1. Normal QA / history. “What has failed on P-101A before?” — the original failure-history
+and risk-scoring behaviour.
+2. Recommendation generation. “What should we watch for on P-101A?” — the forwardframed narration of the same failure-history query.
+3. Compatibility analysis and specification comparison. “Is F-42 compatible with P-301?”
+/ “Compare F-42 and F-44 for pipe P-301.” — structured multi-attribute comparison via the
+tools in §11.5.3.
+4. Compositional reasoning / component selection. “Which funnel should I use for pipe
+P-301?” — the full Constraint-Gather-Filter-Reason chain, §11.5.4.
+All four share the same LangGraph node, the same tool registry, and the same max_iterations
+cap; only the prompt branch and the subset of tools invoked differ, selected by the Supervisor’s
+routing signal and, within SEEKR Asset itself, by a lightweight intent check on the query.
+
+11.5.2
+
+Prompt strategy for capabilities 1–2 (QA/history)
+
+Given a tag, the worker’s LangGraph node runs the Cypher failure-history query (Chapter 8),
+then prompts the frontier model to narrate the result twice: once framed forward (“based on
+this pattern, what should we watch for”) and once backward (“here is what has happened before on similar equipment”). Tool calling. graph_query(tag) (the enhanced, context-aware
+context_graph_query described in Chapter 9); max_iterations=3. Failure recovery. If the
+graph query returns no history (a genuinely new asset), the worker returns an explicit “no history
+available” response rather than fabricating a pattern.
+
+11.5.3
+1
+2
+3
+4
+
+Tools
+
+AGENT_TOOLS = [
+# History / QA ( existing )
+context_graph_query ,
+# context - aware graph query , Ch . 9 -- shallow or deep
+retrieve ,
+# vector + lexical search , Ch . 9
+
+CHAPTER 11. AGENT DESIGN
+
+53
+
+5
+
+# Compatibility analysis and compositional reasoning
+get_entity_specs ,
+# pull all spec - type facts for one entity
+find_by_type ,
+# find all entities of a given type / subtype , with
+specs
+compare_specs ,
+# structured pairwise comparison of two entities ’
+specs
+
+6
+7
+8
+
+9
+
+10
+
+]
+
+Listing 11.1: SEEKR Asset’s tool registry — history/QA tools plus the tools added for compatibility
+analysis and compositional reasoning
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+
+11
+
+async def get_entity_specs ( tag : str ) -> dict :
+" " " Pull all spec - type facts for an entity ( graph + vector ) . " " "
+graph_specs = await neo4j . run ( " " "
+MATCH ( e { tag : $tag }) -[ r ] - >( v )
+WHERE type ( r ) IN [ ’ hasSpec ’,’ hasMaterial ’,’ operatingTemp ’,
+’ operatingPressure ’,’ fitsRange ’,’ ratedFor ’]
+RETURN type ( r ) AS predicate , COALESCE ( v . value , v . tag ) AS value ,
+r . confidence AS confidence , r . source_doc_id AS source
+" " " , tag = tag )
+passages = await qdrant_search ( f " { tag } specifications dimensions material " ,
+top_k =5)
+return { " tag " : tag , " structured_specs " : graph_specs , " supporting_passages " :
+passages }
+
+Listing 11.2: get_entity_specs – pulls structured specification facts plus supporting passages for one
+entity
+1
+2
+3
+4
+5
+6
+7
+
+async def find_by_type ( entity_type : str , subtype : str | None ) -> list [ dict ]:
+" " " Find all entities of a given type with their specs . " " "
+candidates = await neo4j . run ( " " "
+MATCH ( e :{ entity_type }) WHERE ( $subtype IS NULL OR e . type = $subtype )
+RETURN e . tag , e . attributes , e . type LIMIT 20
+" " " , subtype = subtype )
+return [{** c , " specs " : await get_entity_specs ( c [ " tag " ]) } for c in candidates ]
+
+Listing 11.3: find_by_type – finds candidate components of a given type/subtype, with specs attached
+1
+2
+
+3
+4
+5
+
+async def compare_specs ( target_tag : str , candidate_tag : str ) -> dict :
+" " " Structured comparison of two entities ’ specifications , dimension by
+dimension . " " "
+target = await get_entity_specs ( target_tag )
+candidate = await get_entity_specs ( candidate_tag )
+return b uil d_ com pa ris on_ ta ble ( target , candidate )
+# property - by - property
+pass / fail
+
+Listing 11.4: compare_specs – structured pairwise comparison, used both standalone (capability 3) and
+inside CGFR (capability 4)
+
+11.5.4
+
+Compositional Reasoning: the Constraint-Gather-Filter-Reason (CGFR)
+pattern
+
+Why this exists
+Some of the most valuable industrial questions have answers that were never written down
+in any single document. “Which funnel should I use for pipe P-301?” is never answered by
+a sentence like “use funnel F-42 for pipe P-301” anywhere in the corpus — that sentence
+does not exist. The answer is only derivable from specification facts scattered across multiple
+documents (an OEM manual, a P&ID drawing, a process data sheet, a spare parts catalog).
+
+54
+
+SEEKR Engineering Design Document
+
+No embedding search, no BM25 match, and no graph traversal — however context-aware —
+will find a single passage that states the answer, because there is no edge in the graph between
+P-301 and any funnel; they were never mentioned together. The system must construct the
+answer from parts. This is fundamentally a reasoning workflow, not a retrieval pathway,
+and it runs strictly after evidence retrieval: the flow for these queries is User Query →
+Query Classification → Retrieval → Evidence Fusion → Reasoning, with CGFR as
+one reasoning strategy SEEKR Asset selects only for this query class.
+
+202 Constraint
+Extraction
+
+203 Candidate
+Gathering
+
+204 Compatibility
+Filtering
+
+205 Justified
+Selection
+
+Figure 11.2: The four-step Constraint-Gather-Filter-Reason (CGFR) pattern
+
+Step 1 — Constraint Extraction (pure LLM reasoning, no retrieval). The LLM decomposes the original query into the specification dimensions that constrain the answer, before
+any tool is called.
+1
+2
+3
+4
+
+Input : " Which funnel should I use for pipe P -301?"
+LLM - >: Need : diameter ( fit ) , material ( compatibility ) ,
+operating temp ( thermal rating ) , operating pressure ( pressure rating ) ,
+fluid / medium ( corrosion compatibility )
+
+Listing 11.5: Constraint extraction example
+
+This step relies on ordinary engineering domain knowledge already present in a frontier generalpurpose model (Chapter 10); no fine-tuning is required.
+
+Step 2 — Candidate Gathering (two parallel retrievals via existing tools). get_entity_specs(target
+pulls the target equipment’s specification facts; find_by_type(entity_type, subtype) pulls all
+candidate components of the relevant type, each with its own specs attached. Both tools also run
+a vector search (Chapter 9) alongside the graph query, to catch specification passages the graph
+missed.
+Step 3 — Compatibility Filtering (LLM multi-attribute reasoning). The LLM receives
+the target’s extracted constraints and every candidate’s specifications, and evaluates compatibility
+across every dimension explicitly:
+1
+
+P -301: diameter =4" , material =316 SS , temp =150 C , pressure =10 bar
+
+2
+3
+4
+5
+
+F -42: fits 3" -6" , 316 SS , 200 C , 15 bar -> COMPATIBLE ( all 4 dimensions pass )
+F -19: fits 3" -5" , PTFE , 250 C , 8 bar
+-> REJECTED ( pressure : 8 < 10 bar )
+F -55: fits 6" -10" , Carbon Steel , 300 C -> REJECTED ( diameter : 6" min > 4" pipe )
+
+Listing 11.6: Compatibility filtering example
+
+Step 4 — Justified Selection (cited answer). The LLM produces a recommendation where
+every claim traces to a specific fact:
+Example output
+Recommended: F-42 — Fits 4" diameter (range 3"–6") [Catalog:p8], material match 316SS
+
+CHAPTER 11. AGENT DESIGN
+
+55
+
+[OEM Manual:p12, Catalog:p8], rated 200°C > 150°C operating [Process Data:r47, Catalog:p9], rated 15 bar > 10 bar [Catalog:p9].
+
+11.5.5
+1
+2
+
+3
+4
+5
+
+6
+
+Agent prompt addition for CGFR
+
+When a user asks about component selection or " which X for Y " questions :
+1. DECOMPOSE : Identify relevant spec dimensions ( size , material , temp , pressure
+...)
+2. GATHER : Use get_entity_specs () for the target ; find_by_type () for candidates
+3. EVALUATE : Check each candidate on every dimension -- explicit pass / fail
+4. RECOMMEND : Best match with full citation chain . If none match , say so
+explicitly .
+CRITICAL : Never guess a spec . If not in retrieved data , say " not found ."
+
+Listing 11.7: Prompt branch added to SEEKR Asset for component-selection / compatibility questions
+
+11.5.6
+
+Edge case handling
+
+Situation
+
+Behaviour
+
+No candidates of the required type exist in the
+corpus
+
+SEEKR Asset states the target’s known specs,
+states the requirements a compatible part would
+need to meet, and explicitly flags the recommendation as based on general engineering principles rather than corpus documents
+SEEKR Asset reports what it found with citations, explicitly flags the missing dimension as
+“not found,” and states which conclusions can
+and cannot yet be drawn
+All are presented in a structured comparison
+table (FR-UI-6, Chapter 3) with any relevant
+trade-offs (e.g. wider safety margin) named,
+rather than an arbitrary single pick
+SEEKR Asset states this explicitly and names
+which constraint is hardest to satisfy, rather
+than recommending the closest partial match
+silently
+
+Target specs incomplete (e.g. material missing)
+
+Multiple candidates pass every constraint
+
+Zero candidates pass every constraint
+
+Table 11.3: CGFR edge case handling
+
+11.6
+
+SEEKR Diagnose
+
+Decision flow (plan-then-execute).
+1. Plan. Given the query and the target equipment tag, generate a short plan: which graph
+neighbourhoods and document types to pull as context.
+2. Execute. Pull context-aware equipment context (adaptive traversal, Chapter 9, invoked in
+“deep” mode) plus retrieved passages for the plan’s targets.
+3. Hypothesize. Generate ranked causal hypotheses, each with an evidence citation.
+4. Self-critique. A second frontier-tier pass reviews each hypothesis against its cited evidence
+and discards any hypothesis not actually supported.
+
+56
+
+SEEKR Engineering Design Document
+
+5. Stream. Each step is streamed as an SSE event and logged with a sequence number, enabling
+Replay Reasoning (Chapter 13).
+Tool calling. context_graph_query(tag, query, depth="deep"), retrieve(query); max_iterations=5.
+Failure recovery. If self-critique discards every hypothesis, the worker returns an explicit “insufficient evidence for a confident root cause” response.
+
+11.7
+
+SEEKR Comply
+
+Decision flow. For each of the curated 10–15 regulation clauses relevant to the equipment
+scope: run the compliance gap Cypher query (Chapter 8); for each gap, resolve the specific
+missing evidence type; aggregate into a single score and a red/amber/green list. Tool calling.
+context_graph_query(reg_code, depth="shallow"); max_iterations=3. Failure recovery.
+A regulation with no equipment in scope is skipped from the score denominator, not counted as
+a false gap.
+
+11.8
+
+The enhanced context_graph_query tool
+
+All three workers reach the graph through one enhanced tool, which internally dispatches to either
+the shallow fixed-depth mode or the full five-phase context-aware pipeline (Chapter 9):
+1
+2
+3
+4
+
+async def context_graph_query (
+tag : str , query : str , depth : str = " auto " , include_analogues : bool = False ,
+) -> GraphContext :
+" " " Enhanced graph query tool for agents .
+
+5
+6
+
+7
+8
+
+9
+10
+11
+
+’ shallow ’: fixed - depth traversal only , max_depth =2 ( fast , ~100 ms ) -- Ch . 9
+Sec . Retained
+Fast Path .
+’ deep ’:
+full five - phase context - aware pipeline , max_depth =5 (~300 -500 ms )
+-- Ch . 9.
+’ auto ’:
+shallow for Asset ( history mode ) / Comply , deep for Diagnose .
+"""
+...
+
+Listing 11.8: context_graph_query – the single graph-access tool shared by all three workers
+
+This means SEEKR Diagnose’s plan-then-execute flow automatically gets richer context without changing its prompts — it just gets better passages from the same tool call; SEEKR Asset
+and SEEKR Comply automatically get a fast shallow query for their typical single-equipment
+lookups, with the option to request depth="deep" explicitly for a diagnostic-flavoured Asset question.
+
+11.9
+1
+
+2
+
+3
+
+4
+
+5
+
+Prompts (representative)
+
+System : You are SEEKR Diagnose , a root - cause reasoning agent for industrial
+equipment .
+Given the equipment context and retrieved passages below , generate 2 -4 ranked
+causal
+hypotheses . Each hypothesis MUST cite a [ doc_id : passage_id ] or a graph fact_id .
+If the
+evidence does not support a confident hypothesis , say so explicitly . Do not
+speculate
+beyond what the provided context supports .
+
+6
+7
+
+Equipment context : { graph_context }
+
+CHAPTER 11. AGENT DESIGN
+
+8
+9
+
+57
+
+Retrieved passages : { passages }
+Query : { query }
+
+Listing 11.9: SEEKR Diagnose hypothesis-generation prompt skeleton
+
+11.10
+1
+2
+3
+4
+
+Interfaces
+
+class SupervisorState ( TypedDict ) :
+query : str
+query_type : QueryType
+route : Literal [ " asset " , " diagnose " , " comply " , " none " ]
+
+5
+6
+
+async def route ( state : SupervisorState ) -> SupervisorState : ...
+
+7
+8
+9
+10
+11
+
+12
+
+async def seekr_asset ( tag : str , query : str ) -> AssetResult :
+# dispatches internally to history / QA , compatibility , or CGFR based on intent
+...
+async def seekr_diagnose ( tag : str , query : str ) -> DiagnoseResult : ... # streams
+steps
+async def seekr_comply ( scope : str | None ) -> ComplyResult : ...
+
+Listing 11.10: Supervisor and worker interface (conceptual)
+
+11.11
+
+Logging
+
+Every worker invocation writes one audit_log row per step (plan, tool call, hypothesis or constraint, evaluation verdict, final answer), with a monotonic sequence number per session — this
+sequence is exactly what the Replay Reasoning UI control replays (Chapter 13), including CGFR’s
+four-step chain.
+
+11.12
+
+Testing
+
+Agent Success Rate (Chapter 15) is measured as the percentage of scripted invocations that
+complete within the iteration cap and produce an evidence-linked answer, across all four SEEKR Asset capabilities. Unit tests cover routing decisions, per-worker tool-call sequencing, and
+— specifically for CGFR — constraint-extraction correctness on a fixed set of sample queries,
+and compatibility-filtering correctness on a fixed set of target/candidate spec pairs with known
+pass/fail outcomes.
+
+11.13
+
+Expected latency
+
+SEEKR Asset (history/QA/recommendation): < 15s P95. SEEKR Asset (compatibility analysis, single pairwise compare_specs): < 15s P95. SEEKR Asset (CGFR, compositional): < 25s
+P95. SEEKR Comply: < 15s P95. SEEKR Diagnose: < 30s P95 (Chapter 4).
+
+11.14
+
+Dependencies
+
+LangGraph, the frontier-tier LLM, Neo4j (via context_graph_query), the retrieval module (Chapter 9), Postgres audit_log.
+
+58
+
+11.15
+
+SEEKR Engineering Design Document
+
+Future extension
+
+A third autonomy tier with an OPA policy engine, a fourth worker if a genuinely distinct
+job emerges, a company-specific selectionRule relationship type, and a material compatibility lookup tool to reduce reliance on parametric chemistry knowledge, are named roadmap items
+(Chapter 19); no such addition is in scope for this build.
+
+Chapter 12
+APIs
+12.1
+
+Endpoint surface
+
+Endpoint names follow the product branding rather than internal engineering labels. This is the
+complete REST surface; no endpoint outside this list exists in the MVP. Compositional reasoning
+and context-aware traversal introduce no new endpoints — both are reached through the existing
+/api/query and /api/agents/* surface.
+1
+2
+3
+
+4
+5
+6
+7
+8
+9
+10
+11
+12
+
+13
+
+POST
+/ api / documents
+GET
+/ api / documents /{ id }
+POST
+/ api / query
+supported )
+GET
+/ api / entities /{ tag }
+GET
+/ api / entities /{ tag }/ graph ? depth =2
+POST
+/ api / entities /{ tag }/ feedback
+POST
+/ api / agents / diagnose
+GET
+/ api / agents / diagnose /{ job_id }
+GET
+/ api / agents / diagnose /{ job_id }/ replay
+GET
+/ api / agents / comply / gaps
+GET
+/ api / agents / asset / risk /{ tag }
+GET
+/ api / agents / asset / history /{ tag }
+incidents
+POST
+/ api / agents / asset / recommend
+recommendation
+WS
+
+#
+#
+#
+#
+
+entity detail
+entity detail
+human correction -> new fact
+async SEEKR Diagnose ( RCA ) session
+
+#
+#
+#
+#
+
+replay
+SEEKR
+SEEKR
+SEEKR
+
+the streamed reasoning steps
+Comply gap report / score
+Asset : forward risk scoring
+Asset : pattern - matched past
+
+# SEEKR Asset : compositional
+# ( CGFR ) , body : { query , target_tag }
+# streaming answer + agent follow - up
+
+14
+15
+
+# upload + ingest
+# status
+# SEEKR Ask query ( SSE stream
+
+/ ws / copilot /{ session_id }
+
+Listing 12.1: Complete API surface
+
+1
+
+12.2
+
+Request/response examples
+
+12.2.1
+
+POST /api/documents
+
+// multipart / form - data : file = < binary > , authority_class = Supporting
+
+Listing 12.2: Request
+
+1
+
+{ " doc_id " : " b3f1 ... " , " status " : " queued " , " status_url " : " / api / documents / b3f1 ... " }
+
+Listing 12.3: Response 202
+
+59
+
+60
+
+SEEKR Engineering Design Document
+
+12.2.2
+1
+
+POST /api/query
+
+{ " query " : " Why does P -101 A keep failing ? " , " session_id " : "s -88 a2 " , " focused_tag " :
+"P -101 A " }
+
+Listing 12.4: Request, with the new focused_tag field
+
+1
+2
+
+event : token
+data : { " text " : " Pump P -101 A has experienced " }
+
+3
+4
+5
+
+event : citation
+data : { " doc_id " : "d -91 " , " passage_id " : "p -4 " , " page " : 3}
+
+6
+7
+8
+
+event : agent_trigger
+data : { " worker " : " diagnose " , " job_id " : "j -501 " }
+
+9
+10
+11
+
+event : done
+data : { " answer_id " : "a -771 " }
+
+Listing 12.5: SSE stream events
+
+12.2.3
+1
+
+{
+" center " : "P -101 A " ,
+" nodes " : [{ " tag " : "P -101 A " , " type " : " Equipment " } , { " tag " : "P -101 B " , " type " : "
+Equipment " }] ,
+" edges " : [{ " source " : "P -101 A " , " target " : "P -101 B " , " type " : " CONNECTED_TO " , "
+confidence " : 0.55}]
+
+2
+3
+
+4
+
+5
+
+GET /api/entities/{tag}/graph?depth=2
+
+}
+
+Listing 12.6: Response 200
+
+12.2.4
+1
+
+POST /api/entities/{tag}/feedback
+
+{ " predicate " : " experiencedFailure " , " object " : " Misalignment " , " note " : " Confirmed
+on - site " }
+
+Listing 12.7: Request
+
+1
+
+{ " fact_id " : "f -9902 " , " status " : " active " , " supersedes " : "f -8811 " }
+
+Listing 12.8: Response 201
+
+12.2.5
+1
+
+POST /api/agents/diagnose
+
+{ " tag " : "P -101 A " , " query " : " root cause of recurring bearing failure " }
+
+Listing 12.9: Request
+
+1
+
+{ " job_id " : "j -501 " , " status " : " running " }
+
+Listing 12.10: Response 202
+
+CHAPTER 12. APIS
+
+12.2.6
+1
+
+GET /api/agents/diagnose/{job_id}
+
+{
+" job_id " : "j -501 " , " status " : " complete " ,
+" hypotheses " : [
+{ " rank " : 1 , " cause " : " Shaft misalignment " , " confidence " : 0.78 ,
+" evidence " : [ "d -91: p -4 " , " fact :f -7743 " ]}
+]
+
+2
+3
+4
+5
+6
+7
+
+61
+
+}
+
+Listing 12.11: Response 200 (completed)
+
+12.2.7
+1
+
+{
+" score " : 0.86 , " checked " : 15 , " missing " : 2 ,
+" gaps " : [{ " equipment " : "P -101 A " , " regulation " : " OISD -154 " , " missing_evidence " :
+" recertification record " }]
+
+2
+3
+
+4
+
+GET /api/agents/comply/gaps
+
+}
+
+Listing 12.12: Response 200
+
+12.2.8
+1
+
+POST /api/agents/asset/recommend (compositional reasoning)
+
+{ " query " : " Which funnel should I use for pipe P -301? " , " target_tag " : "P -301 " }
+
+Listing 12.13: Request
+1
+
+{
+" recommendation " : "F -42 " ,
+" constraints " : [ " diameter " , " material " , " operatingTemp " , " operatingPressure " ] ,
+" ca n d i d a tes_evaluated " : [
+{ " tag " : "F -42 " , " verdict " : " compatible " , " checks " : { " diameter " : true , "
+material " : true ,
+" operatingTemp " : true , " operatingPressure " : true }} ,
+{ " tag " : "F -19 " , " verdict " : " rejected " , " checks " : { " diameter " : true , " material
+" : true ,
+" operatingTemp " : true , " operatingPressure " : false } , " reject_reason " : "
+operatingPressure " } ,
+{ " tag " : "F -55 " , " verdict " : " rejected " , " checks " : { " diameter " : false } ,
+" reject_reason " : " diameter " }
+],
+" citations " : [ " Catalog : p8 " , " Catalog : p9 " , " OEM Manual : p12 " , " Process Data : r47 " ]
+
+2
+3
+4
+5
+
+6
+7
+
+8
+
+9
+10
+11
+12
+13
+
+}
+
+Listing 12.14: Response 200
+
+12.3
+
+Error format
+
+All error responses share one envelope so the frontend needs one error-handling path:
+1
+
+{ " error " : { " code " : " ENTITY_NOT_FOUND " , " message " : " Tag P -999 Z not found " , " detail
+" : null }}
+
+Listing 12.15: Standard error envelope
+
+A CGFR request that finds zero compatible candidates returns 200, not an error — “no compatible
+candidate found” is a valid, explicitly-stated answer (Chapter 11, §11.5.4), not a failure of the API.
+
+62
+
+12.4
+
+SEEKR Engineering Design Document
+
+Streaming transport
+
+/api/query uses SSE for one-directional streaming (token, citation, agent_trigger, done events).
+/ws/copilot/{sessioni d}addsbidirectionalinteraction.Bothtransportssharethesameeventschema./api/agen
+
+12.5
+
+Versioning
+
+All endpoints are implicitly v1; no version prefix exists in the MVP.
+
+12.6
+
+Rate limiting and auth
+
+Every endpoint except health checks requires a valid JWT (Chapter 14); no rate limiting
+in the MVP.
+
+12.7
+
+Testing
+
+Contract and integration tests per endpoint; see Chapter 16.
+OpenAPI schema (/docs) is the live contract reference.
+
+FastAPI’s auto-generated
+
+Chapter 13
+Frontend
+13.1
+
+Graph-first navigation
+
+The graph explorer is the spine every other feature hangs off. Search always resolves
+to a node; every node is the entry point to its documents, its Copilot context, and
+its agents; every agent conclusion –- including a CGFR recommendation –- writes back
+onto the graph as a highlighted path. Selecting a node also sets focused_tag for every
+subsequent query in the session (Chapter 9, §9.4), so the graph explorer is not just
+a visualisation surface but an active input to retrieval.
+
+Search
+
+Graph node
+(sets focused_tag)
+
+Docs / Copilot
+/ Agents
+
+Evidence
+
+Feedback
+writes back
+
+Figure 13.1: Graph-first navigation loop, including the focused_tag feedback into retrieval
+
+63
+
+64
+
+13.2
+
+SEEKR Engineering Design Document
+
+Page-by-page
+
+Page/route
+
+Content
+
+/login
+/ (dashboard)
+
+Role-based login; seeds one of 4 demo accounts.
+Opens directly on the graph explorer (Cytoscape.js); a morningalert banner highlights any equipment matching a pre-failure pattern (SEEKR Asset).
+Full-screen graph explorer with depth control and click-to-expand;
+the primary navigation surface; selecting a node sets focused_tag.
+Side panel (or full page on mobile) with SEEKR Ask chat, maintenance timeline, linked documents, and agent invocation buttons
+— including “Ask SEEKR Asset which part fits” for compositional queries — for the selected tag.
+Compliance score view: single score, red/amber/green equipment
+list, click-through to missing evidence on the graph.
+Live streaming reasoning overlay; Replay Reasoning control once
+complete.
+Live streaming CGFR reasoning overlay (constraint extraction,
+candidate gathering, compatibility filtering, justified selection),
+rendering the final comparison as a structured table (FR-UI-6).
+
+/graph
+/entity/[tag]
+
+/compliance
+/agents/diagnose/[jobId]
+/agents/asset/recommend
+
+Table 13.1: Page-by-page breakdown
+
+13.3
+1
+2
+3
+4
+
+5
+6
+7
+8
+9
+10
+
+11
+12
+13
+14
+15
+16
+
+17
+18
+19
+20
+21
+22
+
+Component hierarchy
+
+<App >
+< AuthProvider >
+< Layout >
+< GraphExplorer >
+// Cytoscape . js wrapper ; tracks focusedTag in
+GraphStore
+< NodeSidePanel >
+< CopilotChat / >
+// streaming SSE / WS client , sends focused_tag
+< MaintenanceTimeline / >
+< LinkedDocuments / >
+< AgentInvokeBar >
+< AssetPanel / >
+// history / recommendation / compatibility /
+CGFR
+< DiagnosePanel / > < ComplyPanel / >
+</ AgentInvokeBar >
+</ NodeSidePanel >
+</ GraphExplorer >
+< Co m plianceScoreView / >
+< ReasoningOverlay >
+// live streaming + Replay control ( RCA and CGFR
+steps )
+< ReplayControls / >
+< ComparisonTable / >
+// structured pass / fail table for CGFR results
+</ ReasoningOverlay >
+</ Layout >
+</ AuthProvider >
+</ App >
+
+Listing 13.1: Top-level component tree (Next.js + React)
+
+CHAPTER 13. FRONTEND
+
+13.4
+
+65
+
+State management
+
+Session/auth state (JWT, role) lives in a top-level context provider. Graph state
+(currently centred node, expanded depth, highlighted paths, and the currently focused
+tag ) lives in a dedicated GraphStore so both the explorer and the side panel can react
+to the same selection without prop drilling, and so focused_tag can be read by the
+query client on every Copilot request. Streaming state (in-flight tokens, citations,
+agent steps, including CGFR’s four-step chain) is buffered in a per-session reducer
+keyed by session_id/job_id, appended to as SSE/WS events arrive, and flushed to the
+UI on each animation frame. No browser storage (localStorage/sessionStorage) is used;
+everything lives in memory for the session.
+
+13.5
+
+Streaming UI
+
+Copilot tokens render incrementally as they arrive over SSE; each citation event attaches
+a small citation chip to the sentence being generated, clickable to open the source
+passage with its bounding box highlighted. Agent reasoning events (plan, hypothesis,
+critique, and –- for SEEKR Asset’s compositional mode –- constraint, candidate, compatibility
+recommendation) render as a vertically stacked timeline in the Reasoning Overlay, each
+entry linking back to a highlighted graph node or document.
+
+13.6
+
+Graph animations
+
+Node selection triggers a Cytoscape.js layout re-centre and a staged reveal: connected
+documents and sister equipment fade in over ∼400ms, followed by the maintenance timeline
+sliding in from the side panel, followed by any active failure-pattern edges pulsing
+to draw attention. Edges below a 0.7 confidence threshold (Chapter 8) render dashed.
+
+13.7
+
+Replay Reasoning
+
+Because every SEEKR Diagnose step and every CGFR step is already streamed and logged
+with a sequence number (Chapter 11), the Replay control simply re-fetches the logged
+sequence via the replay endpoint (Chapter 12) and re-plays the same events and graph
+highlights at a controlled pace client-side –- no new backend logic beyond the storage
+the streaming overlay already produces.
+
+13.8
+
+Compositional comparison tables
+
+SEEKR Asset’s compatibility and CGFR answers render as a structured, property-by-property
+comparison table (target requirement vs. each candidate’s value, with a pass/fail
+indicator per cell) rather than as unstructured prose, per FR-UI-6. This is the same
+ComparisonTable component used for both a standalone compare_specs call and the final
+step of a full CGFR chain.
+
+13.9
+
+Compliance, made visual
+
+A single score, a colour-coded equipment list, and click-through from any red item
+straight to the missing evidence on the graph.
+
+66
+
+13.10
+
+SEEKR Engineering Design Document
+
+Mobile responsiveness
+
+A responsive layout that works acceptably on a phone browser, with a voice-input button
+(stretch goal) for the Copilot. No offline caching, service-worker sync, or CRDT conflict
+resolution.
+
+13.11
+
+Testing
+
+Component tests cover the streaming reducer, the graph store (selection, expansion,
+highlight state, and focusedTag propagation), and the ComparisonTable component’s pass/fail
+rendering against fixed sample data. A Playwright/Cypress end-to-end test drives the
+exact demo script (Chapter 18) headlessly as a regression check before each rehearsal.
+
+13.12
+
+Expected latency
+
+Perceived responsiveness targets: first graph paint < 1s, node-click reveal animation
+< 1.5s total, Copilot first token per Chapter 4.
+
+13.13
+
+Dependencies
+
+Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, Cytoscape.js.
+
+13.14
+
+Future extension
+
+Offline-first PWA with CRDT sync and a native mobile app are named roadmap items (Chapter 19).
+
+Chapter 14
+Authentication
+14.1
+
+Purpose and scope
+
+Demonstrate the access-control concept the problem statement cares about, without standing
+up an identity provider or a policy engine for a prototype nobody will penetration-test.
+Simple JWT auth with 3–4 hardcoded demo roles and role-based (not attribute-based)
+route guards.
+
+14.2
+
+Roles
+
+Role
+
+Typical access
+
+Technician
+
+Copilot (SEEKR Ask), graph explorer (read), maintenance timeline, SEEKR Asset history/QA/recommendation queries; cannot confirm Tier-2 proposals or view Personnel names.
+All technician access plus SEEKR Diagnose invocation, SEEKR Asset
+compatibility/CGFR queries, Tier-2 confirm/dismiss for maintenance actions.
+All engineer access plus SEEKR Comply, compliance score view, regulation gap detail.
+Full access, including audit_log view and user management (seed accounts
+only in the MVP).
+
+Engineer
+Compliance Officer
+Admin
+
+Table 14.1: The four seeded demo roles
+
+14.3
+
+JWT flow
+
+1. User submits username/password to POST /api/auth/login.
+2. Backend verifies the password hash (users.password_hash, bcrypt) and issues a signed
+JWT with claims {sub: user id, role, exp}.
+3. Frontend stores the JWT in memory and attaches it as a Bearer token on every subsequent
+request.
+4. A FastAPI dependency validates signature and expiry on every protected route, and
+injects the decoded role claim into the request context for the route guard to check.
+5. On expiry, the frontend redirects to /login; there is no refresh-token flow in the
+MVP.
+67
+
+68
+
+1
+2
+3
+4
+5
+6
+
+SEEKR Engineering Design Document
+
+def require_role (* allowed : str ) :
+def dependency ( claims : dict = Depends ( decode_jwt ) ) :
+if claims [ " role " ] not in allowed :
+raise HTTPException (403 , detail ={ " code " : " FORBIDDEN_ROLE " })
+return claims
+return dependency
+
+7
+8
+9
+
+10
+
+@app . post ( " / api / agents / asset / recommend " )
+async def asset_recommend ( claims = Depends ( require_role ( " engineer " , "
+co mp li ance_officer " , " admin " ) ) ) :
+...
+
+Listing 14.1: Route guard dependency (conceptual)
+
+14.4
+
+Permissions matrix
+
+Endpoint
+/api/query
+/api/entities/*
+/api/entities/*/feedback
+/api/agents/diagnose
+/api/agents/asset/history, /risk
+/api/agents/asset/recommend (CGFR)
+/api/agents/comply/*
+Tier-2 confirm/dismiss
+audit_log view
+
+Technician
+
+Engineer
+
+Compliance
+
+Admin
+
+✓
+✓
+
+✓
+✓
+✓
+✓
+✓
+✓
+
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+
+✓
+
+✓
+
+Table 14.2: Coarse RBAC permissions matrix
+
+14.5
+
+Edge cases
+
+• Expired token mid-stream (during an SSE session, including a CGFR reasoning stream):
+the stream is closed with a 401-equivalent SSE error event; the frontend prompts
+re-login without losing the partially rendered answer.
+• Personnel entity attributes (names) are redacted in API responses for roles below
+engineer.
+
+14.6
+
+Testing
+
+Unit tests cover token issuance, expiry rejection, and each route’s guard against every
+role. No penetration testing is in scope for the MVP.
+
+14.7
+
+Dependencies
+
+PyJWT, passlib/bcrypt, the users table (Chapter 7).
+
+14.8
+
+Future extension
+
+Keycloak (OIDC/LDAP) with OPA (ABAC) and mTLS is the named enterprise upgrade (Chapter 19).
+
+Chapter 15
+Evaluation
+15.1
+
+Philosophy
+
+Every figure presented to a judge must be something the team actually measured on the
+actual demo corpus. No published benchmark, no inter-annotator agreement study, no
+ablations –- those are legitimate future work (Chapter 19), not claims the team can
+defend under live questioning.
+
+69
+
+70
+
+15.2
+
+SEEKR Engineering Design Document
+
+Evaluation dashboard
+
+Dashboard tile
+
+How measured
+
+Why it’s checkable
+
+Knowledge Coverage
+
+% of demo-corpus equipment tags
+with at least one linked document/fact
+Manual spot-check: does the cited
+passage support the sentence, on
+20 answers
+15–20 hand-written test queries
+with a known correct source
+document, precision@5, including
+queries specifically covering implicit context and cross-domain
+bridges (Chapter 9)
+Simple timing harness, P50/P95
+over 30 queries, split by shallow
+vs. full traversal mode
+% of scripted agent invocations
+(Asset history/QA, Asset CGFR,
+Diagnose, Comply) completing
+within the iteration cap with an
+evidence-linked answer
+Precision/recall on 5–8 handconstructed CGFR test queries
+with a known correct recommendation
+5 deliberately introduced gaps in
+the demo corpus, precision/recall
+on those 5
+
+Directly visible on the graph itself
+
+Citation Accuracy
+Retrieval Accuracy
+
+Retrieval Latency
+Agent Success Rate
+
+Compositional Accuracy
+
+Compliance Detection
+
+Demonstrates
+the
+antihallucination story concretely
+Small enough to build and run in
+an afternoon; a judge can ask a
+live variant
+
+Shows the system is demo-fast,
+not just demo-correct
+Directly testable live by a judge
+
+Directly testable live by a judge;
+specifically stresses the “answer
+was never written down” claim
+Directly testable live by a judge
+
+Table 15.1: Evaluation dashboard metrics
+
+15.3
+
+Ground truth creation
+
+• Retrieval test set. 15–20 queries hand-written against the actual demo corpus, including
+at least 3 implicit-context queries (no named entity, relying on chat history or
+focused_tag) and at least 2 cross-domain-bridge queries (relying on structural enrichment),
+each with the known correct source document(s) recorded before any retrieval code
+is run against them.
+• Citation spot-check set. 20 Copilot answers sampled after the retrieval/generation
+pipeline is stable; each cited sentence checked by hand against its cited passage.
+
+• Entity-extraction spot-check. 20 documents hand-reviewed for extracted entities/relationshi
+and specification facts against what a human reader would extract.
+• Compositional test set. 5–8 hand-constructed component-selection questions (modelled
+on the funnel/pipe example) against a demo corpus deliberately seeded with a spare-parts
+catalog containing dimensional, material, and rating specifications, with the correct
+recommendation (or correct “no compatible candidate” verdict) recorded in advance.
+• Compliance test gaps.
+
+5 gaps deliberately introduced into the demo corpus.
+
+CHAPTER 15. EVALUATION
+
+15.4
+
+71
+
+Manual evaluation process
+
+One team member (rotating) runs each spot-check independently and records a binary
+correct/incorrect judgement per item in a shared spreadsheet; disagreements on ambiguous
+cases are resolved by a second reviewer before the number is finalised for the dashboard.
+
+15.5
+
+Dashboard implementation
+
+The evaluation dashboard is a page in the frontend (Chapter 13), reading its numbers
+from a small evaluation_results table populated by a one-off script run during Week
+5, re-run whenever a subsystem changes materially enough to warrant re-measurement.
+
+15.6
+
+Expected targets
+
+Metric
+
+Target
+
+Knowledge Coverage
+Citation Accuracy
+Retrieval Accuracy
+(precision@5)
+Retrieval Latency
+Agent Success Rate
+Compositional Accuracy
+
+≥ 90% of the 15–25 demo equipment tags
+≥ 90% of spot-checked citations support their sentence
+≥ 80% on the 15–20 hand-written queries
+
+Compliance Detection
+
+P95 within the targets in Chapter 4
+≥ 85% of scripted invocations
+≥ 4/6 hand-constructed CGFR queries correctly recommended (or
+correctly flagged as unresolvable)
+≥ 4/5 deliberate gaps correctly flagged, ≤ 1 false positive across
+the checked set
+Table 15.2: Expected evaluation targets
+
+15.7
+
+Dependencies
+
+The seeded demo corpus and its ground-truth annotations, the retrieval and agent modules
+under test, a small evaluation-runner script (Chapter 16).
+
+15.8
+
+Future extension
+
+A full published-benchmark-style evaluation with inter-annotator agreement and ablation
+studies is the named roadmap item (Chapter 19).
+
+Chapter 16
+Testing
+16.1
+
+Testing philosophy
+
+Given a 5-week, 4-person timeline, testing is scoped to what protects the demo: every
+pipeline stage and every agent has enough automated testing to catch a regression before
+rehearsal, and the full demo script itself is the top-level acceptance test.
+
+16.2
+
+Unit testing
+
+Area
+
+What is unit-tested
+
+Entity resolution
+
+Exact match, fuzzy match threshold behaviour, embedding fallback trigger condition
+Supersession transaction (old row marked superseded, new row active,
+never a delete), for both relational and specification-type predicates
+Explicit/implicit tag extraction, focused-node insertion, chat-history
+mining, capping behaviour (Chapter 9, §9.4)
+Relevance-decay pruning, node-budget enforcement, edge-confidence
+propagation, best-first ordering (Chapter 9, §9.6)
+Bridge-node discovery correctness on a small fixture graph, hub-detection
+threshold behaviour (Chapter 9, §9.7)
+Correct pathway weights selected per query type; renormalisation when
+a pathway is empty
+All tags resolve; one tag fails and regenerates; two failures flag the sentence
+Supervisor picks the expected worker for each query-type/trigger combination, including compositional/compatibility triggers routing to SEEKR Asset
+Constraint extraction on a fixed query set; compatibility filtering on a
+fixed set of target/candidate spec pairs with known pass/fail outcomes
+(Chapter 11, §11.5.4)
+Token issuance/expiry, route guard pass/fail per role
+
+Fact/trust model
+Context assembly
+Adaptive traversal
+Structural enrichment
+Retrieval fusion
+Citation resolution
+Agent routing
+CGFR reasoning
+Auth
+
+Table 16.1: Unit test coverage by area
+
+72
+
+CHAPTER 16. TESTING
+
+16.3
+
+73
+
+Integration testing
+
+Integration tests run against a seeded, demo-scale instance of Postgres, Neo4j, and
+Qdrant (brought up via the same Docker Compose file used for the real deployment, with
+a small fixed fixture corpus of ∼10 documents including a spare-parts catalog with
+specification data):
+• Full ingestion pipeline: upload → parse → extract (relational and specification
+facts) → resolve → facts written → graph materialised → vectors indexed, asserting
+expected node/edge/vector counts.
+• Full Copilot request lifecycle (Section 5.8) against the fixture corpus, asserting
+a citation-resolved answer is returned within the latency budget, exercised in both
+shallow and full-traversal modes.
+• Each of the three agent workers end-to-end against the fixture corpus, including
+at least one full CGFR chain against the fixture’s spare-parts catalog with a known
+expected recommendation.
+
+16.4
+
+End-to-end (UI) testing
+
+A Playwright/Cypress script drives the browser through the exact demo script (Chapter 18):
+login → dashboard → click P-101A → invoke SEEKR Diagnose → ask SEEKR Asset a
+compositional “which part fits” question → switch to compliance view → submit a correction
+→ assert the graph updates. Run before every rehearsal as a regression gate.
+
+16.5
+
+AI-specific testing
+
+• Extraction schema conformance. Every fast-tier extraction call’s output is validated
+against the extended JSON schema (Chapter 10); a fixed set of sample chunks with
+expected triples –- including specification-type triples –- acts as a regression
+suite.
+• Prompt regression. Representative prompts (Copilot generation, Diagnose hypothesis
+generation, CGFR constraint extraction and compatibility filtering) are re-run against
+a small fixed query set whenever a prompt changes, with manual review of the diff
+in output quality.
+• Evaluation dashboard (Chapter 15) doubles as an AI-quality regression check.
+
+16.6
+
+Test data
+
+The ∼10-document integration fixture is a fixed, hand-picked subset of the full 100–300
+document demo corpus, small enough to run in CI-like fashion in seconds to low minutes,
+large enough to exercise every entity type, at least one P&ID, and enough specification
+data (on both equipment and spare parts) to exercise a full CGFR chain.
+
+16.7
+
+What is explicitly not tested
+
+Load testing beyond the P95 latency harness in Chapter 15, security penetration testing,
+and multi-region failover are out of scope.
+
+74
+
+16.8
+
+SEEKR Engineering Design Document
+
+Dependencies
+
+pytest (unit/integration), Playwright or Cypress (end-to-end), the Docker Compose stack
+(Chapter 17) for integration fixtures.
+
+Chapter 17
+Deployment
+17.1
+
+Target
+
+Docker Compose on a single workstation or a single cloud VM. No Kubernetes, no multi-node
+orchestration.
+
+17.2
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+10
+11
+
+Docker Compose services
+
+version : "3.9"
+services :
+postgres :
+image : postgres :16
+environment :
+POSTGRES_DB : seekr
+POSTGRES_USER : seekr
+POST GRES_PASSWORD : $ { POSTGRES_PASSWORD }
+volumes : ["./ data / postgres :/ var / lib / postgresql / data " , "./ migrations :/
+migrations "]
+healthcheck :
+test : [" CMD - SHELL " , " pg_isready -U seekr "]
+
+12
+13
+14
+15
+16
+17
+18
+
+neo4j :
+image : neo4j :5 - community
+environment :
+NEO4J_AUTH : neo4j / $ { NEO4J_PASSWORD }
+volumes : ["./ data / neo4j :/ data "]
+ports : ["7474:7474" , "7687:7687"]
+
+19
+20
+21
+22
+23
+
+qdrant :
+image : qdrant / qdrant : latest
+volumes : ["./ data / qdrant :/ qdrant / storage "]
+ports : ["6333:6333"]
+
+24
+25
+26
+
+redis :
+image : redis :7
+
+27
+28
+29
+30
+31
+32
+
+fabric - api :
+build : ./ backend
+env_file : . env
+depends_on : [ postgres , neo4j , qdrant , redis ]
+ports : ["8000:8000"]
+
+33
+34
+35
+36
+
+ingestion - worker :
+build : ./ backend
+command : rq worker ingestion
+
+75
+
+76
+
+37
+38
+
+SEEKR Engineering Design Document
+
+env_file : . env
+depends_on : [ postgres , neo4j , qdrant , redis ]
+
+39
+40
+41
+42
+43
+44
+
+frontend :
+build : ./ frontend
+env_file : . env
+ports : ["3000:3000"]
+depends_on : [ fabric - api ]
+
+Listing 17.1: docker-compose.yml (representative) – unchanged by context-aware retrieval and
+compositional reasoning, both of which run inside fabric-api
+
+This is exactly the four deployable units fixed for the MVP: (1) ingestion worker,
+(2) fabric API, (3) Next.js frontend, (4) Postgres+Neo4j+Qdrant+Redis as managed containers.
+Context-aware traversal and CGFR compositional reasoning add code inside fabric-api,
+not a new service.
+
+17.3
+
+1
+2
+3
+4
+5
+
+6
+7
+
+8
+
+9
+10
+11
+12
+13
+14
+15
+16
+
+17
+18
+19
+20
+21
+22
+23
+24
+
+Folder structure
+
+seekr /
+backend /
+app /
+api /
+ingestion /
+resolution
+retrieval /
+
+# FastAPI routers : documents , query , entities , agents
+# Docling parsing , extraction ( incl . spec predicates ) ,
+# chunking , pathways , context assembly , seed expansion ,
+# adaptive traversal , structural enrichment , fusion ,
+reranking
+# LangGraph supervisor + asset ( incl . CGFR ) / diagnose /
+
+agents /
+comply
+kg /
+# Neo4j driver wrapper , Cypher queries
+db /
+# SQLAlchemy models , migrations
+auth /
+# JWT , role guards
+tests /
+Dockerfile
+frontend /
+app /
+# Next . js app router pages
+components /
+# GraphExplorer , CopilotChat , ReasoningOverlay ,
+ComparisonTable , ...
+lib /
+# API client , SSE / WS handling , GraphStore
+Dockerfile
+migrations /
+001 _init . sql
+002 _facts_fts . sql
+003 _ f a cts _p red ic ate _in de x . sql
+docker - compose . yml
+. env . example
+
+Listing 17.2: Repository layout
+
+CHAPTER 17. DEPLOYMENT
+
+17.4
+
+77
+
+Environment variables
+
+Variable
+
+Purpose
+
+POSTGRES_PASSWORD, NEO4J_PASSWORD
+DATABASE_URL
+
+Datastore credentials
+Postgres connection string for the fabric API
+and worker
+Neo4j driver connection
+Qdrant connection
+Job queue connection
+Signing key for auth tokens
+LLM provider credentials per tier (Chapter 10)
+Embedding provider or local model path
+
+NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+QDRANT_URL
+REDIS_URL
+JWT_SECRET
+FAST_MODEL_API_KEY, FRONTIER_MODEL_API_KEY
+EMBEDDING_MODEL_ENDPOINT
+
+Table 17.1: Environment variables (.env)
+
+17.5
+
+Startup sequence
+
+1. docker compose up -d postgres neo4j qdrant redis and wait for health checks.
+2. Apply migrations: psql $DATABASE_URL -f migrations/001_init.sql (and subsequent
+files in order, including 003_facts_predicate_index.sql).
+3. Seed demo users (Chapter 14) and the canonical tag/alias list (Chapter 8) via a
+one-off seed script.
+4. docker compose up -d fabric-api ingestion-worker frontend.
+5. Bulk-ingest the demo corpus (including a spare-parts catalog with specification
+data) via POST /api/documents (scripted loop) or a one-off ingestion CLI.
+
+17.6
+
+Configuration management
+
+All configuration is environment-variable driven; no hardcoded endpoints or credentials
+in code.
+
+17.7
+
+Observability
+
+Basic structured logging (JSON lines, one line per pipeline stage/agent step/API request)
+to stdout, collected via docker compose logs; a Postgres audit_log table provides the
+user-facing audit trail, including a per-step log for CGFR chains.
+
+17.8
+
+Degradation plan for the demo
+
+If P&ID live extraction proves unreliable close to demo day, the fallback is to pre-load
+2–3 curated drawings’ graph edges directly via a seed script. If context-aware traversal’s
+structural-enrichment phase proves slow on stage, it is dropped per the fallback in
+Chapter 9, and the demo continues on adaptive-traversal results alone. If a CGFR query’s
+candidate gathering finds nothing in the live corpus, the rehearsed fallback is to
+have the demo corpus seeded with a spare-parts catalog verified in advance to contain
+a working example.
+
+78
+
+17.9
+
+SEEKR Engineering Design Document
+
+Dependencies
+
+Docker, Docker Compose, a single workstation or cloud VM with sufficient resources
+to run Postgres, Neo4j, Qdrant, Redis, and two Python services plus a Next.js app concurrently
+
+17.10
+
+Future extension
+
+K3s/Kubernetes is the named upgrade trigger for multi-plant scale and independent service
+scaling (Chapter 19); not before.
+
+Chapter 18
+Demo
+18.1
+
+Why one continuous interaction
+
+A demo that is “upload docs → chat → graph → RCA → compliance” is technically complete
+but forgettable. The fix is choreographing the existing features into one continuous,
+visual interaction judges watch unfold –- and, critically, the demo must include a
+moment where SEEKR answers a question that was never written down anywhere in the
+corpus, because that is the single most differentiated capability of the system.
+
+79
+
+80
+
+18.2
+
+SEEKR Engineering Design Document
+
+Complete demo script — “A Day in the Life”
+
+Beat
+
+Time
+
+What happens
+
+1. Morning alert
+
+0:00–0:45
+
+2. Click P-101A
+
+0:45–2:00
+
+3. Invoke SEEKR Diagnose
+
+2:00–4:00
+
+4. Ask a compositional question
+
+4:00–5:30
+
+5. Compliance score view
+
+5:30–6:30
+
+6. Correction → live graph update
+
+6:30–7:30
+
+7. Close
+
+7:30–8:00
+
+Graph dashboard shows a rising-vibration pattern on P-101A highlighted, matching a historical pre-failure signature (SEEKR Asset).
+Speaking point: “The system doesn’t wait for a
+work order — it noticed this pattern on its own.”
+Graph animates outward via context-aware
+traversal: work orders, inspection report, OEM
+manual, sister pump P-101B all light up; SEEKR Ask streams a cited history summary
+alongside. Speaking point: name the citation
+chip, click one to show the source passage. Note
+that focused_tag is now P-101A for every subsequent question.
+Reasoning steps appear live, each hypothesis
+linked to a highlighted node; final answer names
+misalignment as the likely root cause. Speaking
+point: narrate the self-critique step discarding a
+weaker hypothesis.
+With P-301 focused on the graph, ask “Which
+funnel should I use for this pipe?” SEEKR Asset streams its CGFR chain live: decomposing
+constraints, gathering P-301’s specs and candidate funnels, evaluating compatibility, and recommending F-42 with a full citation chain, rendered as a structured comparison table. Speaking point: “No document in this corpus ever says
+to use F-42 on P-301 — the system just constructed that answer from four separate specifications.”
+Switch to 86% score; P-101A’s overdue recertification shown in red; click through to the
+missing evidence on the graph.
+Engineer types a correction note; it’s written as
+a new fact and the graph updates live on screen.
+Return to the graph-first dashboard; state the
+evaluation dashboard numbers (Chapter 15), including the compositional-accuracy figure, as the
+closing, checkable claim.
+
+Table 18.1: Demo script with timing and speaking points
+
+18.3
+
+Transitions
+
+Every transition between beats is a graph interaction (a click, a worker invocation,
+a view switch), never a slide change or a context switch to a different tool.
+
+CHAPTER 18. DEMO
+
+18.4
+
+81
+
+Judge questions and expected answers
+
+Likely question
+
+Expected answer
+
+“How do you know the answer isn’t hallucinated?”
+
+Every sentence carries a [doc_id:passage_id]
+tag or a graph fact_id checked against the retrieved set before the answer ships; click any
+citation to see the exact source passage (Chapter 9).
+SEEKR Asset’s compositional reasoning
+mode decomposed the question into specification constraints, gathered P-301’s specs and every candidate funnel’s specs separately, and filtered by compatibility — the recommendation
+is constructed from four individually-cited facts,
+not retrieved from a single passage (Chapter 11,
+§11.5.4).
+Both facts remain queryable; the newer one is
+marked active, the older superseded — nothing
+is silently overwritten (Chapter 7, Chapter 8).
+The MVP is deliberately scoped to the demo
+envelope; Chapter 19 names the exact upgrade
+path for each simplification.
+SEEKR Asset says so explicitly and names
+which constraint is hardest to satisfy, rather
+than recommending the closest partial match
+silently (Chapter 11, §11.5.4).
+No auto-execute tier exists; Tier-2 proposals require a role-gated human confirm/dismiss click,
+and a compositional recommendation is always
+Tier 1 (informational).
+Point directly to the live evaluation dashboard numbers (Chapter 15), including the
+compositional-accuracy figure, all measured on
+the real demo corpus.
+
+“How did it know to recommend F-42 when no
+document ever mentioned it alongside P-301?”
+
+“What happens if two documents disagree?”
+“Does this scale past a few hundred documents?”
+“What if no compatible part exists?”
+
+“Can an agent take an action on its own?”
+
+“What’s your actual accuracy?”
+
+Table 18.2: Anticipated judge questions and rehearsed answers
+
+82
+
+18.5
+
+SEEKR Engineering Design Document
+
+Failure recovery during the demo
+
+If this fails live
+
+Recovery
+
+P&ID live VLM extraction is slow/unreliable
+
+Fall back to 2–3 pre-processed drawings with
+graph edges pre-loaded.
+Have a second, pre-recorded run of the same exact script ready to play as a fallback narration.
+Acknowledge it directly, which is itself proof the
+safety mechanism works.
+Show the explicit “inconclusive” response as intended behaviour, not a crash.
+Confirm the demo corpus’s seeded spare-parts
+catalog in advance so the rehearsed query has a
+verified answer; if it happens live anyway, narrate the explicit “no compatible candidate” response as the correct, honest behaviour rather
+than a failure.
+
+Wi-Fi/network drops mid-demo (LLM API call)
+Copilot answer’s citation fails to resolve on
+stage
+Agent exceeds its iteration cap
+CGFR finds zero compatible candidates on the
+live corpus during rehearsal
+
+Table 18.3: Failure recovery playbook
+
+18.6
+
+Rehearsal plan
+
+The full script is rehearsed end-to-end at least three times during Week 5 against
+the real demo corpus, timed with a stopwatch, with every team member able to deliver
+every speaking point –- including the compositional-reasoning beat, which is rehearsed
+separately at least once more given it is the newest and most judge-differentiating
+part of the script.
+
+Chapter 19
+Future Enterprise Roadmap
+19.1
+
+Principle
+
+Every simplification made for the MVP has a documented, named upgrade path rather than
+a dead end. If, while implementing any chapter of this document, a team member finds
+themselves wanting to add a service, database, agent, or framework not already named
+in Chapter 5 through Chapter 18, the correct action is to write it into the table below
+(if it isn’t already there) and continue building the MVP as specified –- not to build
+it now.
+
+83
+
+84
+
+19.2
+
+SEEKR Engineering Design Document
+
+MVP → enterprise upgrade path
+
+MVP choice
+
+Enterprise upgrade
+
+Trigger to invest
+
+Simple facts table
+Docker Compose
+
+Full bitemporal claim store
+(TimescaleDB)
+K3s → full Kubernetes
+
+Direct async calls
+
+Kafka event backbone
+
+Neo4j single node
+
+Memgraph + analytical mirror
+
+Rule-based query router
+
+Learned,
+offline-trained
+pathway-weighting classifier
+
+Best-first, relevance-decayed
+adaptive traversal
+
+Full Neo4j GDS Enterprise
+(proper community detection, centrality algorithms)
+replacing the degree-based hub
+heuristic
+Microsoft GraphRAG-style offline community summarisation
+A dedicated compatibilityrules
+engine
+encoding
+company-specific
+selection
+policy (selectionRule relationship type)
+A
+dedicated
+materialcompatibility
+lookup
+tool/database
+queried
+by
+the agent instead of relying on
+LLM training data
+A typed Specification node
+label with schema- validated
+properties
+RT-DETR
++
+SAM2
+connectivity-graph pipeline
+
+Multi-site deployment, regulatory audit-replay requirement
+Multi-plant scale, need for independent service scaling
+Sustained 1,000+ docs/day ingestion
+10M+ node graphs, streaming
+ingestion
+Enough
+logged
+query/relevance
+data
+to
+train on
+Graph scale or precision requirements the degree heuristic
+can no longer satisfy
+
+Query-time structural enrichment (shortest paths, hub
+heuristic)
+CGFR as an in-agent reasoning pattern
+
+Parametric
+materialcompatibility knowledge
+
+Free-text predicate column
+VLM-based P&ID extraction
+Two autonomy tiers
+
+Three-tier autonomy
+OPA policy engine
+
+JWT + coarse roles
+
+Keycloak (OIDC/LDAP) +
+OPA (ABAC)
+
+Practical multi-metric eval
+(incl. compositional accuracy)
+
+Full
+published-benchmarkstyle evaluation with IAA,
+ablations, significance testing
+Historian-replica / data-diode
+pattern
+
+No OT integration
+
+with
+
+Enough offline compute budget
+and a static-enough corpus to
+amortise hours of clustering
+A real customer with proprietary, non-obvious selection
+rules that a frontier LLM cannot infer zero-shot
+Evidence of hallucination on
+obscure material pairs during
+real usage
+Specification
+volume
+and
+query complexity outgrow
+scalar node/edge properties
+Need for verified,
+highprecision drawing topology at
+scale
+Regulated customer requiring formal auto-execute governance
+Enterprise SSO and finegrained, time-bounded access
+requirements
+Pre-sales technical due diligence, published case study
+Customer with a live process
+historian to integrate
+
+Table 19.1: MVP to enterprise upgrade path
+
+CHAPTER 19. FUTURE ENTERPRISE ROADMAP
+
+19.3
+
+85
+
+Sequencing if the project continues past the hackathon
+
+Should SEEKR continue past the hackathon, the recommended order of investment follows
+the trigger conditions above, roughly: (1) ingestion volume growth triggers the Kafka
+backbone before anything else, since it is purely additive to the existing pipeline
+shape; (2) a second real customer triggers Keycloak/OPA before a bitemporal store,
+since access control is usually the first procurement blocker; (3) a dedicated material-compat
+lookup tool and a selectionRule relationship type are the next-cheapest wins, since
+they directly reduce the residual hallucination risk in compositional reasoning identified
+in Chapter 10; (4) graph scale, full GDS, and the P&ID vision pipeline are the most
+expensive upgrades and should wait for clear evidence (node counts, drawing-topology
+precision requirements) rather than being pre-built speculatively.
+
+19.4
+
+Closing
+
+Every cut recorded in this document removes something a real production platform would
+eventually need and nothing a hackathon judge can actually evaluate in a live demo.
+What remains is still a genuinely differentiated product: a knowledge graph built
+from real industrial documents, hybrid retrieval with honest citations, a context-aware
+graph traversal pipeline that understands conversational intent rather than just keyword-match
+entities, a working multi-agent system with three specialist workers that map directly
+onto the problem statement’s own suggested features, a compositional reasoning capability
+that constructs answers no document ever stated, a P&ID-to-graph pipeline, and an evaluation
+suite the team can defend under questioning because every number in it was actually
+measured on the actual demo corpus.
+
+Appendix: Decision Log
+Every significant technology and design choice made during the MVP design, with its
+rationale and the rejected alternative. This is the detailed backing for the one-line
+summary in Section 5.2, and demonstrates that architectural choices were deliberate,
+including the choices made when integrating context-aware retrieval and compositional
+reasoning into the original architecture.
+
+86
+
+CHAPTER 19. FUTURE ENTERPRISE ROADMAP
+
+87
+
+Decision
+
+Alternative
+
+Reason
+
+FastAPI
+
+Flask
+
+Neo4j
+
+Memgraph
+
+Docling (IBM)
+
+MinerU /
+Marker
+Tesseract /
+EasyOCR
+Milvus /
+pgvector
+CrewAI /
+AutoGen
+Vite SPA /
+Remix
+D3.js / vis.js
+
+Async endpoint support; native Pydantic validation;
+auto-generated OpenAPI docs
+Ecosystem maturity; better Cypher tooling; GDS algorithm library for graph analytics
+Per-element bbox provenance required for passage-level
+citations; stronger table-structure recognition
+Materially better F1 on printed technical fonts; Tesseract
+kept as offline fallback
+Simpler single-binary deployment; native sparse+dense
+hybrid search; Rust-core performance
+Deterministic supervisor–worker orchestration; first-class
+support for typed tool contracts and state checkpointing
+SSR for fast initial load on low-bandwidth plant networks;
+ISR for dashboard pages; mature ecosystem
+Purpose-built for large graph rendering; better layout algorithms for industrial ontology graphs
+Relational integrity for the fact model; JSONB for flexible
+metadata; pg_trgm for FTS
+Single-binary, zero-ops for 4-person team
+
+PaddleOCR
+Qdrant
+LangGraph
+Next.js + React
+Cytoscape.js
+PostgreSQL
+(facts)
+Redis (task
+queue)
+Docker Compose
+JWT (self-issued)
+Static RRF
+fusion
+
+MongoDB
+Celery +
+RabbitMQ
+Kubernetes /
+K3s
+Keycloak /
+Auth0
+Learned
+re-ranker
+
+Right-sized for a single-machine hackathon demo
+Zero additional infrastructure for 3 demo roles
+Deterministic, no training data needed for the MVP
+
+Decisions specific to context-aware retrieval integration:
+Fixed *1..2
+Solves disconnected- relevance, implicit-context, and
+Best-first,
+cross-domain-bridge failure modes (Chapter 9, Table 9.1)
+relevance-decayed k-hop only
+without a new service
+traversal
+Degree-based hub Neo4j GDS
+No GDS licence required at demo scale; roadmap item if
+heuristic
+Enterprise
+graph scale later demands real community detection
+Avoids hours of offline LLM compute incompatible with a
+Microsoft
+Query-time
+5-week hackathon
+GraphRAG
+structural
+offline
+enrichment
+summarisation
+focused_tag as
+Inferring focus
+Trivial, deterministic, and the frontend already tracks the
+an explicit
+purely from
+selected node in GraphStore
+payload field
+chat-history
+NLP
+Reused Qdrant
+A separate
+Avoids a second embedding pipeline and a second vector
+search for seed
+node-embedding collection
+expansion
+index
+Decisions specific to compositional reasoning integration:
+CGFR as a
+A dedicated
+Keeps the supervisor–worker shape at exactly three workSEEKR Asset
+fourth
+ers; avoids duplicating tool plumbing and routing logic for
+reasoning pattern “Compositional” a capability that is really just a different prompt branch
+agent
+Extended
+New
+Neo4j is schema-free on relationship types; a prompt
+predicate set,
+Specification
+change to the extraction LLM was sufficient and required
+prompt-level only node label with
+no migration
+a graph-schema
+migration
+No fine-tuning for Fine-tune on
+Frontier LLMs already handle constraint decomposition
+
+
