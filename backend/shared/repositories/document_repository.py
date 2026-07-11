@@ -76,20 +76,35 @@ class DocumentRepository:
     def mark_embedded(self, document_id: str | uuid.UUID, model_name: str, embedded_at) -> None:
         doc = self.get_by_id(document_id)
         if doc:
-            doc.status = "EMBEDDED"
             doc.embedding_model = model_name
             doc.embedded_at = embedded_at
+            if doc.status not in ["COMPLETED", "FAILED"]:
+                doc.status = "EMBEDDED"
+            if doc.embedded_at is not None and doc.graph_built_at is not None:
+                doc.status = "COMPLETED"
+            
+    def mark_graph_built(self, document_id: str | uuid.UUID, graph_built_at) -> None:
+        doc = self.get_by_id(document_id)
+        if doc:
+            doc.graph_built_at = graph_built_at
+            if doc.status not in ["COMPLETED", "FAILED"]:
+                doc.status = "GRAPH_BUILT"
+            if doc.embedded_at is not None and doc.graph_built_at is not None:
+                doc.status = "COMPLETED"
             
     def mark_indexing(self, document_id: str | uuid.UUID) -> None:
         doc = self.get_by_id(document_id)
         if doc:
             doc.status = "INDEXING"
             
-    def mark_completed(self, document_id: str | uuid.UUID, embedding_time_ms: int) -> None:
+    def mark_completed(self, document_id: str | uuid.UUID, embedding_time_ms: int = None, graph_time_ms: int = None) -> None:
         doc = self.get_by_id(document_id)
         if doc:
             doc.status = "COMPLETED"
-            doc.embedding_time_ms = embedding_time_ms
+            if embedding_time_ms is not None:
+                doc.embedding_time_ms = embedding_time_ms
+            if graph_time_ms is not None:
+                doc.graph_time_ms = graph_time_ms
 
     def update_failure(self, document_id: str | uuid.UUID, error_message: str, status: str = "FAILED") -> None:
         """Records a failure."""

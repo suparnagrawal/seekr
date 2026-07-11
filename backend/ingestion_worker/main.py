@@ -55,7 +55,6 @@ def main():
         worker = Worker(
             [INGESTION_QUEUE_NAME],
             connection=redis_conn,
-            name="ingestion_worker_1",
             log_job_description=False # Handled by structlog
         )
         

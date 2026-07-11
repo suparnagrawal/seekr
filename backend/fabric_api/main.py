@@ -36,9 +36,13 @@ def create_app() -> FastAPI:
     app.add_exception_handler(SeekrError, seekr_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
 
-    # Register Routers under a consistent versioned prefix
     app.include_router(health.router, prefix=API_V1_PREFIX)
     app.include_router(upload.router, prefix=API_V1_PREFIX)
+    
+    # Include P2/P3 application routers
+    from backend.app.api import query, agents
+    app.include_router(query.router, prefix=API_V1_PREFIX, tags=["query"])
+    app.include_router(agents.router, prefix=f"{API_V1_PREFIX}/agents", tags=["agents"])
 
     return app
 

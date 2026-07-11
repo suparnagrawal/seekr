@@ -15,6 +15,7 @@ class DocumentStatus(str, Enum):
     EMBEDDED = "EMBEDDED"
     INDEXING = "INDEXING"
     GRAPH_BUILDING = "GRAPH_BUILDING"
+    GRAPH_BUILT = "GRAPH_BUILT"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
@@ -37,6 +38,10 @@ class Document(Base):
     embedding_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     embedding_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    # Graph metadata
+    graph_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    graph_built_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     
