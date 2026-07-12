@@ -11,11 +11,21 @@ backend/app/retrieval/context.py.
 
 from __future__ import annotations
 
+import os
 from typing import Any, AsyncIterator, Dict, List, Optional
-from backend.shared.llm.client import get_llm_client, get_default_model
 
-_client = get_llm_client()
-LLM_MODEL = get_default_model()
+from openai import AsyncOpenAI
+
+LLM_API_KEY = os.getenv("LLM_API_KEY", os.getenv("FAST_MODEL_API_KEY", ""))
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", None)
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+_client = AsyncOpenAI(
+    api_key=LLM_API_KEY or "dummy",
+    max_retries=3,
+    timeout=60.0,
+    **({"base_url": LLM_BASE_URL} if LLM_BASE_URL else {}),
+)
 
 
 async def generate_streaming(

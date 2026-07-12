@@ -1,40 +1,37 @@
-from typing import List, Dict
-from backend.app.retrieval.models import Chunk
-from backend.app.retrieval.interfaces import FusionStrategy
-from backend.shared.config import settings
-import structlog
+from typing import List
+from backend.app.retrieval.models import QueryType, Chunk
 
-logger = structlog.get_logger(__name__)
+# From Chapter 9 Table 9.5
+FUSION_WEIGHTS = {
+    QueryType.FACTUAL: {"graph": 0.2, "vector": 0.5, "lexical": 0.8},
+    QueryType.DIAGNOSTIC: {"graph": 0.8, "vector": 0.5, "lexical": 0.2},
+    QueryType.PROCEDURAL: {"graph": 0.8, "vector": 0.8, "lexical": 0.2},
+    QueryType.OPEN: {"graph": 0.2, "vector": 0.8, "lexical": 0.5},
+}
 
-class ReciprocalRankFusion(FusionStrategy):
-    """
-    Reciprocal Rank Fusion (RRF) algorithm.
-    RRF_score = sum(1 / (k + rank_in_list))
-    """
-    def __init__(self, k: int | None = None):
-        self.k = k if k is not None else settings.RRF_K
-
-    def fuse(self, results_groups: List[List[Chunk]]) -> List[Chunk]:
-        rrf_scores: Dict[str, float] = {}
-        chunk_map: Dict[str, Chunk] = {}
-        
-        for hits in results_groups:
-            if not hits:
-                continue
-            # Results are expected to be sorted by their native score already
-            for rank, hit in enumerate(hits):
-                score = 1.0 / (self.k + rank + 1)
+def fuse(
+    graph_hits: List[Chunk], vector_hits: List[Chunk], lexical_hits: List[Chunk], weights: dict
+) -> List[Chunk]:
+    # Normalise scores per pathway, then apply weights, then dedup by chunk_id
+    combined = {}
+    
+    # Mock normalisation (just taking raw score * weight for simplicity)
+    for hits, source, weight in [(graph_hits, "graph", weights["graph"]),
+                                 (vector_hits, "vector", weights["vector"]),
+                                 (lexical_hits, "lexical", weights["lexical"])]:
+        for hit in hits:
+            # Simple dedup strategy: keep max score
+            scored_val = hit.score * weight
+            if hit.chunk_id not in combined or combined[hit.chunk_id].score < scored_val:
+                hit.score = scored_val
+                combined[hit.chunk_id] = hit
                 
-                if hit.chunk_id not in rrf_scores:
-                    rrf_scores[hit.chunk_id] = 0.0
-                    chunk_map[hit.chunk_id] = hit
-                    
-                rrf_scores[hit.chunk_id] += score
-                
-        for chunk_id, rrf_score in rrf_scores.items():
-            chunk_map[chunk_id].score = rrf_score
-            
-        combined = list(chunk_map.values())
-        combined.sort(key=lambda x: -x.score)
-        
-        return combined
+    # Return sorted combined hits
+    return sorted(list(combined.values()), key=lambda x: -x.score)
+
+def rerank(query: str, fused: List[Chunk]) -> List[Chunk]:
+    # Local cross-encoder reranking mock
+    # E.g., model = CrossEncoder('BAAI/bge-reranker-base')
+    # scores = model.predict([(query, chunk.text) for chunk in fused])
+    # For now, just return the top 8
+    return fused[:8]

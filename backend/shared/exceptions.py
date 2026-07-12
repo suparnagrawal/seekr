@@ -56,4 +56,3 @@ class AuthorizationError(SeekrError):
     """Raised when an authenticated user lacks the required role for an action."""
     def __init__(self, message: str = "Insufficient permissions."):
         super().__init__(message, status_code=403)
-

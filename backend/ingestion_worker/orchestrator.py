@@ -41,23 +41,4 @@ class PipelineOrchestrator:
             logger.error("Failed to enqueue embedding job", document_id=document_id, error=str(e), exc_info=True)
             raise
 
-    def enqueue_graph_extraction(self, document_id: str) -> str:
-        """
-        Enqueues the parallel pipeline stage (P1: Graph Extraction).
-        """
-        try:
-            job = self.queue.enqueue(
-                "backend.ingestion_worker.graph_jobs.process_graph_job",
-                kwargs={"document_id": str(document_id)},
-                job_id=f"graph_{document_id}",
-                job_timeout=settings.RQ_GRAPH_TIMEOUT,
-                retry=get_default_retry(),
-                result_ttl=86400
-            )
-            logger.info("Enqueued graph extraction job via orchestrator", document_id=document_id, job_id=job.id)
-            return job.id
-        except Exception as e:
-            logger.error("Failed to enqueue graph extraction job", document_id=document_id, error=str(e), exc_info=True)
-            raise
-
 pipeline_orchestrator = PipelineOrchestrator()

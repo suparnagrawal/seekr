@@ -84,15 +84,9 @@ def process_embedding_job(document_id: str) -> dict[str, Any]:
                 embedding_model=settings.EMBEDDING_MODEL
             )
             
-            # Transition to EMBEDDED and check state convergence
+            # Transition to COMPLETED
             time_ms = int((time.time() - start_time) * 1000)
-            repo.mark_embedded(document_id, settings.EMBEDDING_MODEL, datetime.now(timezone.utc))
-            
-            # Save embedding time
-            doc = repo.get_by_id(document_id)
-            if doc:
-                doc.embedding_time_ms = time_ms
-                
+            repo.mark_completed(document_id, time_ms)
             repo.db.commit()
             
             logger.info("Embedding and Indexing completed successfully", document_id=document_id, time_ms=time_ms, count=len(chunks))

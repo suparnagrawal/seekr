@@ -33,7 +33,6 @@ class Settings(BaseSettings):
     # RQ Queue Configuration
     RQ_DOC_PARSE_TIMEOUT: int = 300
     RQ_EMBED_TIMEOUT: int = 180
-    RQ_GRAPH_TIMEOUT: int = 600
     RQ_RETRY_MAX: int = 3
     RQ_RETRY_INTERVALS: str = "10,30,60"
     
@@ -55,12 +54,6 @@ class Settings(BaseSettings):
     # Storage Configuration
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
-    
-    # LLM Configuration
-    LLM_SUPPORTS_JSON_MODE: bool = True
-    
-    # Retrieval Configuration
-    RRF_K: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
