@@ -24,6 +24,7 @@ class ParsedDocument:
     metadata: dict[str, Any]
     page_count: int
     docling_document: Any | None  # The in-memory DoclingDocument
+    chunks: list[dict[str, Any]] | None = None
 
 class ParsingService:
     """
@@ -84,31 +85,67 @@ class ParsingService:
         logger.info("Starting Docling extraction", file_path=file_path)
         
         try:
-            converter = self._get_converter()
-            # Convert the document
-            result = converter.convert(path)
+            from backend.shared.config import settings
             
-            # Export to Markdown
-            markdown_content = result.document.export_to_markdown()
-            
-            # Gather metadata (we extract much more now for artifact saving)
-            page_count = len(result.document.pages)
-            
-            # Keep application metadata lean. The rich document lives in memory.
-            metadata = {
-                "origin": result.input.file.name,
-                "file_size": result.input.file.stat().st_size,
-                "docling_version": self.docling_version,
-                "page_count": page_count,
-                "parser_config": self._config
-            }
-            
-            logger.info("Docling extraction completed", file_path=file_path, page_count=page_count)
+            if settings.REMOTE_PARSER_URL:
+                logger.info("Offloading Docling parsing to remote gateway", remote_url=settings.REMOTE_PARSER_URL)
+                import httpx
+                
+                with open(path, "rb") as f:
+                    files = {"file": (path.name, f, "application/pdf")}
+                    # We give the remote API up to 5 minutes to parse a large document
+                    response = httpx.post(
+                        settings.REMOTE_PARSER_URL,
+                        files=files,
+                        headers={"ngrok-skip-browser-warning": "1"},
+                        timeout=300.0
+                    )
+                response.raise_for_status()
+                
+                data = response.json()
+                markdown_content = data["markdown"]
+                metadata = data["metadata"]
+                page_count = data["page_count"]
+                
+                # Retrieve pre-computed chunks from the gateway
+                chunks = data.get("chunks", None)
+                
+                # IMPORTANT: DO NOT import DoclingDocument here!
+                # Simply importing anything from docling.datamodel can pull in Torch/Transformers 
+                # at the module level and instantly OOM the 512MB Render instance.
+                docling_document = None
+                
+                logger.info("Remote Docling extraction completed", file_path=file_path, page_count=page_count, has_chunks=bool(chunks))
+            else:
+                logger.info("Using local Docling parser")
+                converter = self._get_converter()
+                # Convert the document
+                result = converter.convert(path)
+                
+                # Export to Markdown
+                markdown_content = result.document.export_to_markdown()
+                
+                # Gather metadata
+                page_count = len(result.document.pages)
+                
+                metadata = {
+                    "origin": result.input.file.name,
+                    "file_size": result.input.file.stat().st_size,
+                    "docling_version": self.docling_version,
+                    "page_count": page_count,
+                    "parser_config": self._config
+                }
+                
+                docling_document = result.document
+                logger.info("Local Docling extraction completed", file_path=file_path, page_count=page_count)
+                chunks = None
+                
             return ParsedDocument(
                 markdown=markdown_content,
                 metadata=metadata,
                 page_count=page_count,
-                docling_document=result.document
+                docling_document=docling_document,
+                chunks=chunks
             )
             
         except Exception as e:

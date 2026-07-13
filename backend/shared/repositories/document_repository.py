@@ -4,7 +4,7 @@ import uuid
 import structlog
 
 from backend.shared.database import get_db
-from backend.shared.models.document import Document
+from backend.shared.models.document import Document, GraphJobStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -53,6 +53,11 @@ class DocumentRepository:
             document_id = uuid.UUID(document_id)
         return self.db.query(Document).filter(Document.id == document_id).first()
 
+    def get_by_id_for_update(self, document_id: str | uuid.UUID) -> Document | None:
+        if isinstance(document_id, str):
+            document_id = uuid.UUID(document_id)
+        return self.db.query(Document).filter(Document.id == document_id).with_for_update().first()
+
     def update_status(self, document_id: str | uuid.UUID, status: str) -> None:
         """Updates just the status of a document."""
         doc = self.get_by_id(document_id)
@@ -73,23 +78,61 @@ class DocumentRepository:
         if doc:
             doc.status = "EMBEDDING"
             
+    def _check_convergence(self, doc) -> None:
+        """Centralized convergence logic."""
+        if doc.embedded_at:
+            if doc.graph_job_status == GraphJobStatus.SKIPPED or (
+                doc.graph_job_status == GraphJobStatus.SUCCESS and doc.graph_built_at is not None
+            ):
+                doc.status = "COMPLETED"
+            elif doc.graph_job_status == GraphJobStatus.FAILED:
+                doc.status = "FAILED"
+
     def mark_embedded(self, document_id: str | uuid.UUID, model_name: str, embedded_at) -> None:
-        doc = self.get_by_id(document_id)
+        doc = self.get_by_id_for_update(document_id)
         if doc:
-            doc.status = "EMBEDDED"
             doc.embedding_model = model_name
             doc.embedded_at = embedded_at
+            if doc.status not in ["COMPLETED", "FAILED"]:
+                doc.status = "EMBEDDED"
+            self._check_convergence(doc)
+            
+    def mark_graph_skipped(self, document_id: str | uuid.UUID) -> None:
+        """Marks the graph job as skipped."""
+        doc = self.get_by_id_for_update(document_id)
+        if doc:
+            doc.graph_job_status = GraphJobStatus.SKIPPED
+            self._check_convergence(doc)
+
+    def mark_graph_failed(self, document_id: str | uuid.UUID) -> None:
+        """Marks the graph job as failed."""
+        doc = self.get_by_id_for_update(document_id)
+        if doc:
+            doc.graph_job_status = GraphJobStatus.FAILED
+            self._check_convergence(doc)
+
+    def mark_graph_built(self, document_id: str | uuid.UUID, graph_built_at) -> None:
+        doc = self.get_by_id_for_update(document_id)
+        if doc:
+            doc.graph_built_at = graph_built_at
+            doc.graph_job_status = GraphJobStatus.SUCCESS
+            if doc.status not in ["COMPLETED", "FAILED"]:
+                doc.status = "GRAPH_BUILT"
+            self._check_convergence(doc)
             
     def mark_indexing(self, document_id: str | uuid.UUID) -> None:
         doc = self.get_by_id(document_id)
         if doc:
             doc.status = "INDEXING"
             
-    def mark_completed(self, document_id: str | uuid.UUID, embedding_time_ms: int) -> None:
+    def mark_completed(self, document_id: str | uuid.UUID, embedding_time_ms: int = None, graph_time_ms: int = None) -> None:
         doc = self.get_by_id(document_id)
         if doc:
             doc.status = "COMPLETED"
-            doc.embedding_time_ms = embedding_time_ms
+            if embedding_time_ms is not None:
+                doc.embedding_time_ms = embedding_time_ms
+            if graph_time_ms is not None:
+                doc.graph_time_ms = graph_time_ms
 
     def update_failure(self, document_id: str | uuid.UUID, error_message: str, status: str = "FAILED") -> None:
         """Records a failure."""

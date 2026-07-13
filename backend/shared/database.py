@@ -1,15 +1,17 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from collections.abc import Generator
+from psycopg_pool import AsyncConnectionPool
 import structlog
 
 from backend.shared.config import settings
 
 logger = structlog.get_logger(__name__)
 
+# --- Sync Postgres (for RQ) ---
 try:
     engine = create_engine(
-        settings.database_url,
+        settings.database_url.replace("postgresql://", "postgresql+psycopg://", 1),
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,
@@ -23,12 +25,18 @@ except Exception as e:
 Base = declarative_base()
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    Dependency to get a database session.
-    Yields the session and ensures it is closed after use.
-    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+# --- Async Postgres (for FastAPI / P2) ---
+_async_pg_url = settings.postgres_dsn
+pg_pool = AsyncConnectionPool(_async_pg_url, open=False)
+
+async def init_db_pools():
+    await pg_pool.open()
+
+async def close_db_pools():
+    await pg_pool.close()

@@ -5,9 +5,9 @@ from fastapi import FastAPI
 
 from backend.shared.config import settings
 from backend.shared.logging import setup_logging
-from backend.shared.database import engine
-from backend.shared.neo4j_client import neo4j_driver
-from backend.shared.qdrant_client import qdrant_client
+from backend.shared.database import engine, init_db_pools, close_db_pools
+from backend.shared.neo4j_client import neo4j_driver, close_neo4j_async
+from backend.shared.qdrant_client import qdrant_client, close_qdrant_async
 from backend.shared.redis_client import redis_conn
 
 logger = structlog.get_logger(__name__)
@@ -53,16 +53,31 @@ async def lifespan(app: FastAPI):
     
     logger.info("Infrastructure clients verified and ready.")
 
+    await init_db_pools()
+    logger.info("Async database pools initialized.")
+
     yield # Yield control to the FastAPI application
 
     # Shutdown Sequence
     logger.info("Application shutting down. Closing infrastructure connections...")
     
     try:
+        await close_db_pools()
+        logger.info("Async database pools closed.")
+    except Exception as e:
+        logger.error("Error closing async database pools", error=str(e))
+        
+    try:
         neo4j_driver.close()
         logger.info("Neo4j driver closed.")
     except Exception as e:
         logger.error("Error closing Neo4j driver", error=str(e))
+        
+    try:
+        await close_neo4j_async()
+        logger.info("Neo4j async driver closed.")
+    except Exception as e:
+        logger.error("Error closing Neo4j async driver", error=str(e))
         
     try:
         redis_conn.close()
@@ -81,5 +96,11 @@ async def lifespan(app: FastAPI):
         logger.info("Qdrant client closed.")
     except Exception as e:
         logger.error("Error closing Qdrant client", error=str(e))
+        
+    try:
+        await close_qdrant_async()
+        logger.info("Qdrant async client closed.")
+    except Exception as e:
+        logger.error("Error closing Qdrant async client", error=str(e))
 
     logger.info("Shutdown sequence complete.")

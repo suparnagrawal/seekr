@@ -8,10 +8,8 @@ from backend.shared.constants import INGESTION_QUEUE_NAME
 
 logger = structlog.get_logger(__name__)
 
-redis_conn = Redis(
-    host=settings.REDIS_HOST,
-    port=settings.REDIS_PORT,
-    db=settings.REDIS_DB,
+redis_conn = Redis.from_url(
+    settings.redis_url,
     decode_responses=False  # Keep false for RQ binary compatibility
 )
 

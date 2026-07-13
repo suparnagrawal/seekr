@@ -14,7 +14,6 @@ The Supervisor NEVER:
 
 import json
 import re
-from typing import Optional
 
 from backend.app.agents.shared.state import EscalationContext, WorkerType
 from backend.app.agents.shared.logging import get_logger, log_routing
@@ -90,7 +89,7 @@ async def route(escalation: EscalationContext) -> WorkerType:
                 session_id=escalation.session_id,
                 selected_worker=worker.value,
                 confidence=0.9,
-                reason=f"llm_routing_decision",
+                reason="llm_routing_decision",
             )
             return worker
             

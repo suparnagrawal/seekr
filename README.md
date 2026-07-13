@@ -23,6 +23,9 @@ The P1 backend is built on a modern, asynchronous Python stack orchestrated via 
 - **Distributed Transaction Recovery**: A dedicated `CleanupService` orchestrates rollback compensations, ensuring that database failures or queue errors never leave orphaned artifact directories or dangling rows.
 - **Synchronous Infrastructure Boot**: FastAPI `lifespan` implements granular, synchronous exponential backoff checks (`wait_for_dependency`) for Redis, Qdrant, and Neo4j, ensuring seamless cold boots in containerized environments.
 
+## Architecture Notes
+- Lexical retrieval is temporarily disabled because the BM25 schema migration is deferred. The current retrieval pipeline uses Dense + Graph retrieval with RRF fusion.
+
 ## 🚀 Getting Started
 
 ### 1. Start Infrastructure

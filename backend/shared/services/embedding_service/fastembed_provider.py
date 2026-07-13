@@ -20,7 +20,7 @@ class FastEmbedProvider(EmbeddingProvider):
                 from fastembed import TextEmbedding  # type: ignore
                 from backend.shared.config import settings
                 logger.info("Initializing FastEmbed model", model_name=self.model_name)
-                self._model = TextEmbedding(model_name=self.model_name, cache_dir=settings.FASTEMBED_CACHE_DIR)
+                self._model = TextEmbedding(model_name=self.model_name, cache_dir=settings.FASTEMBED_CACHE_DIR, threads=1)
                 logger.info("FastEmbed model initialized successfully")
             except ImportError:
                 raise InfrastructureError("fastembed package is not installed.", service="Embedding")

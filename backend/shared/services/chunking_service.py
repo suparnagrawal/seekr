@@ -2,7 +2,6 @@ import structlog
 import hashlib
 from typing import Any
 from functools import lru_cache
-from docling.chunking import HierarchicalChunker
 from backend.shared.services.parsing_service import ParsedDocument
 from backend.shared.exceptions import IngestionPipelineError
 
@@ -17,7 +16,13 @@ class ChunkingService:
     def __init__(self):
         # We can cache or lazily instantiate chunker models here if we switch to 
         # ML-based chunking later. HierarchicalChunker is currently deterministic and light.
-        self._chunker = HierarchicalChunker()
+        self._chunker = None
+        
+    def _get_chunker(self):
+        if self._chunker is None:
+            from docling.chunking import HierarchicalChunker
+            self._chunker = HierarchicalChunker()
+        return self._chunker
         
     def chunk_document(self, document_id: str, parsed_doc: ParsedDocument) -> list[dict[str, Any]]:
         """
@@ -29,16 +34,40 @@ class ChunkingService:
         """
         logger.info("Starting hierarchical chunking", document_id=document_id)
         
+        if parsed_doc.chunks:
+            # The remote gateway already chunked it! Just hydrate the deterministic IDs locally.
+            artifact_chunks = []
+            for chunk in parsed_doc.chunks:
+                heading_path = chunk.get("heading_path", "root")
+                page_str = chunk.get("page_str", "0")
+                normalized_text = chunk.get("normalized_text", chunk["text"])
+                
+                chunk_hash_input = f"{document_id}_{heading_path}_{page_str}_{normalized_text}".encode("utf-8")
+                chunk_id = hashlib.sha256(chunk_hash_input).hexdigest()
+                
+                chunk["id"] = chunk_id
+                chunk["source_document"] = document_id
+                
+                # Clean up gateway-specific keys
+                for key in ["heading_path", "page_str", "normalized_text"]:
+                    chunk.pop(key, None)
+                    
+                artifact_chunks.append(chunk)
+            
+            logger.info("Used pre-computed remote chunks", document_id=document_id, chunk_count=len(artifact_chunks))
+            return artifact_chunks
+
         docling_doc = parsed_doc.docling_document
         if not docling_doc:
             raise IngestionPipelineError(
-                message="Cannot chunk document: missing 'docling_document' in ParsedDocument.",
+                message="Cannot chunk document: missing 'docling_document' or 'chunks' in ParsedDocument.",
                 stage="Chunking"
             )
             
         try:
             # Execute chunking directly on the in-memory object
-            chunks_iter = self._chunker.chunk(docling_doc)
+            chunker = self._get_chunker()
+            chunks_iter = chunker.chunk(docling_doc)
             
             # Map into our artifact schema with deterministic IDs
             artifact_chunks = []

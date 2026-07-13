@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import String, BigInteger, DateTime, Integer, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.shared.database import Base
@@ -15,8 +16,14 @@ class DocumentStatus(str, Enum):
     EMBEDDED = "EMBEDDED"
     INDEXING = "INDEXING"
     GRAPH_BUILDING = "GRAPH_BUILDING"
+    GRAPH_BUILT = "GRAPH_BUILT"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+class GraphJobStatus(str, Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
 
 class Document(Base):
     __tablename__ = "documents"
@@ -37,6 +44,11 @@ class Document(Base):
     embedding_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     embedding_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    # Graph metadata
+    graph_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    graph_built_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    graph_job_status: Mapped[GraphJobStatus | None] = mapped_column(SQLEnum(GraphJobStatus, name="graphjobstatus"), nullable=True)
     
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     

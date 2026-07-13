@@ -1,9 +1,12 @@
 from typing import Any, Dict, List, Tuple
-from backend.app.db.connection import qdrant_client, neo4j_driver, pg_pool
+from backend.shared.database import pg_pool
+from backend.shared.neo4j_client import get_neo4j_async
+from backend.shared.qdrant_client import get_qdrant_async
 
 async def qdrant_search(query_embedding: List[float], top_k: int = 10) -> List[Dict[str, Any]]:
     # Assuming collection name is 'chunks'
-    response = await qdrant_client.query_points(
+    client = get_qdrant_async()
+    response = await client.query_points(
         collection_name="seekr_chunks",
         query=query_embedding,
         limit=top_k
@@ -24,7 +27,8 @@ async def neo4j_neighbors(tag: str) -> List[Tuple[str, str, float]]:
     RETURN neighbor.tag AS tag, type(r) AS rel_type, COALESCE(r.confidence, 1.0) AS confidence
     LIMIT 100
     """
-    async with neo4j_driver.session() as session:
+    driver = get_neo4j_async()
+    async with driver.session() as session:
         result = await session.run(query, tag=tag)
         records = await result.data()
         return [(rec["tag"], rec["rel_type"], rec["confidence"]) for rec in records]
@@ -45,3 +49,44 @@ async def pg_facts(doc_ids: List[str]) -> List[Dict[str, Any]]:
                 }
                 for row in rows
             ]
+
+async def pg_resolve_entities(text: str) -> List[str]:
+    """Resolve entities in text by searching Neo4j for tag or name matches."""
+    if not text:
+        return []
+        
+    query = """
+    MATCH (n:Entity) 
+    WHERE toLower($text) CONTAINS toLower(n.tag) OR toLower($text) CONTAINS toLower(n.name) 
+    RETURN n.tag LIMIT 10
+    """
+    
+    try:
+        driver = get_neo4j_async()
+        async with driver.session() as session:
+            result = await session.run(query, text=text)
+            records = await result.data()
+            return [rec["n.tag"] for rec in records if "n.tag" in rec]
+    except Exception as e:
+        import structlog
+        logger = structlog.get_logger(__name__)
+        logger.warning("Entity resolution query failed", error=str(e))
+        return []
+
+async def get_redis_session_history(session_id: str, limit: int = 5) -> List[str]:
+    """Fetch recent message history from Redis."""
+    from backend.shared.redis_client import redis_conn
+    import asyncio
+    key = f"session:{session_id}:history"
+    try:
+        messages = await asyncio.to_thread(redis_conn.lrange, key, -limit, -1)
+        return [msg.decode('utf-8') for msg in messages if msg]
+    except Exception:
+        import structlog
+        logger = structlog.get_logger(__name__)
+        logger.warning(
+            "Failed to fetch Redis session history",
+            session_id=session_id,
+            exc_info=True,
+        )
+        return []

@@ -1,6 +1,5 @@
 import structlog
 from rq import Queue
-from backend.shared.redis_client import get_queue
 from backend.shared.rq_policy import get_default_retry
 from backend.shared.config import settings
 
@@ -40,5 +39,28 @@ class PipelineOrchestrator:
         except Exception as e:
             logger.error("Failed to enqueue embedding job", document_id=document_id, error=str(e), exc_info=True)
             raise
+
+    def enqueue_graph(self, document_id: str) -> str | None:
+        """
+        Enqueues the P1 knowledge-graph extraction stage (fans out in parallel
+        with embedding). Best-effort: graph extraction is supplementary, so a
+        failure to enqueue is logged but does not fail ingestion.
+        """
+        if not settings.GRAPH_EXTRACTION_ENABLED:
+            return None
+        try:
+            job = self.queue.enqueue(
+                "backend.ingestion_worker.graph_jobs.process_graph_job",
+                kwargs={"document_id": str(document_id)},
+                job_id=f"graph_{document_id}",
+                job_timeout=settings.RQ_GRAPH_TIMEOUT,
+                retry=get_default_retry(),
+                result_ttl=86400
+            )
+            logger.info("Enqueued graph extraction job via orchestrator", document_id=document_id, job_id=job.id)
+            return job.id
+        except Exception as e:
+            logger.error("Failed to enqueue graph job", document_id=document_id, error=str(e), exc_info=True)
+            return None
 
 pipeline_orchestrator = PipelineOrchestrator()
