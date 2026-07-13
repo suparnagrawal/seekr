@@ -5,6 +5,7 @@ import structlog
 
 from backend.app.retrieval.interfaces import RetrievalPipeline, BaseRetriever, FusionStrategy, SearchQuery, RetrievalResult
 from backend.app.retrieval.context import ContextAssembler
+from backend.shared.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -33,7 +34,7 @@ class DefaultRetrievalPipeline(RetrievalPipeline):
         logger.info("Pipeline fusion complete", total_chunks=len(fused_chunks))
         
         return RetrievalResult(
-            chunks=fused_chunks[:8], # Temporary reranking slice until P0D
+            chunks=fused_chunks[: settings.RETRIEVAL_TOP_K],
             diagnostics={"query_type": context.query_type.value},
             timings={"total_seconds": time.time() - start_time},
             pathways_used=[r.name for r in self.retrievers]

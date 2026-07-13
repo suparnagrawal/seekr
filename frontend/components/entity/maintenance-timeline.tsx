@@ -10,11 +10,11 @@ import { formatDate } from '@/lib/utils';
 import { StaggerChildren, StaggerItem } from '@/components/animations/stagger-children';
 
 const typeConfig: Record<string, { icon: typeof Wrench; color: string }> = {
-  inspection: { icon: Eye, color: 'text-blue-400' },
-  repair: { icon: Wrench, color: 'text-amber-400' },
-  replacement: { icon: RotateCcw, color: 'text-violet-400' },
-  calibration: { icon: Gauge, color: 'text-cyan-400' },
-  incident: { icon: AlertTriangle, color: 'text-red-400' },
+  inspection: { icon: Eye, color: 'text-signal' },
+  repair: { icon: Wrench, color: 'text-signal' },
+  replacement: { icon: RotateCcw, color: 'text-signal' },
+  calibration: { icon: Gauge, color: 'text-mint' },
+  incident: { icon: AlertTriangle, color: 'text-ember' },
 };
 
 const severityVariant: Record<string, 'default' | 'success' | 'warning' | 'destructive'> = {
@@ -78,7 +78,7 @@ export function MaintenanceTimeline({ tag }: { tag: string }) {
     return (
       <div className="flex items-center justify-center h-48">
         <motion.div
-          className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent"
+          className="w-6 h-6 rounded-full border-2 border-signal border-t-transparent"
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
         />
@@ -88,7 +88,7 @@ export function MaintenanceTimeline({ tag }: { tag: string }) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-zinc-500">
+      <div className="flex items-center justify-center h-48 text-sm text-muted">
         Failed to load maintenance history: {error}
       </div>
     );
@@ -96,7 +96,7 @@ export function MaintenanceTimeline({ tag }: { tag: string }) {
 
   if (events.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-zinc-500">
+      <div className="flex items-center justify-center h-48 text-sm text-muted">
         No maintenance events found for {tag}
       </div>
     );
@@ -105,7 +105,7 @@ export function MaintenanceTimeline({ tag }: { tag: string }) {
   return (
     <div className="overflow-y-auto px-4 py-4">
       <StaggerChildren className="relative">
-        <div className="absolute left-[19px] top-2 bottom-2 w-px bg-zinc-800" />
+        <div className="absolute left-[19px] top-2 bottom-2 w-px bg-base" />
 
         {events.map((event) => {
           const config = typeConfig[event.type] || typeConfig.inspection;
@@ -114,19 +114,19 @@ export function MaintenanceTimeline({ tag }: { tag: string }) {
           return (
             <StaggerItem key={event.id} className="relative flex gap-4 pb-6 last:pb-0">
               <div className="relative z-10 mt-1">
-                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-panel border border-line flex items-center justify-center">
                   <Icon className={`w-4 h-4 ${config.color}`} />
                 </div>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-zinc-200 capitalize">{event.type}</span>
+                  <span className="text-sm font-medium text-ink capitalize">{event.type}</span>
                   {event.severity && (
                     <Badge variant={severityVariant[event.severity]}>{event.severity}</Badge>
                   )}
                 </div>
-                <p className="text-sm text-zinc-400 mt-1 leading-relaxed">{event.description}</p>
-                <div className="flex items-center gap-3 mt-2 text-xs text-zinc-500">
+                <p className="text-sm text-muted mt-1 leading-relaxed">{event.description}</p>
+                <div className="flex items-center gap-3 mt-2 text-xs text-muted">
                   <span>{formatDate(event.date)}</span>
                   {event.technician && <span>by {event.technician}</span>}
                 </div>

@@ -1,4 +1,4 @@
-import asyncio
+
 from backend.shared.neo4j_client import neo4j_driver
 
 def evaluate_graph():

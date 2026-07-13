@@ -11,22 +11,22 @@ interface StepTimelineProps {
 }
 
 const statusConfig = {
-  completed: { icon: CheckCircle2, color: 'text-emerald-400', ring: 'ring-emerald-500/30' },
-  running: { icon: Loader2, color: 'text-blue-400', ring: 'ring-blue-500/30' },
-  failed: { icon: XCircle, color: 'text-red-400', ring: 'ring-red-500/30' },
-  pending: { icon: Clock, color: 'text-zinc-500', ring: 'ring-zinc-700' },
+  completed: { icon: CheckCircle2, color: 'text-mint', ring: 'ring-mint/30' },
+  running: { icon: Loader2, color: 'text-signal', ring: 'ring-signal/30' },
+  failed: { icon: XCircle, color: 'text-ember', ring: 'ring-ember/30' },
+  pending: { icon: Clock, color: 'text-muted', ring: 'ring-line' },
 };
 
 const workerColors: Record<string, string> = {
-  retriever: 'bg-cyan-500/20 text-cyan-300',
-  analyzer: 'bg-violet-500/20 text-violet-300',
-  reasoner: 'bg-amber-500/20 text-amber-300',
-  recommender: 'bg-emerald-500/20 text-emerald-300',
+  retriever: 'bg-mint-soft text-mint',
+  analyzer: 'bg-signal-soft text-violet-300',
+  reasoner: 'bg-signal-soft text-signal',
+  recommender: 'bg-mint-soft text-mint',
 };
 
 export function StepTimeline({ steps, activeIndex }: StepTimelineProps) {
   return (
-    <div className="divide-y divide-zinc-800/50">
+    <div className="divide-y divide-line">
       {steps.map((step, i) => {
         const config = statusConfig[step.status];
         const Icon = config.icon;
@@ -40,7 +40,7 @@ export function StepTimeline({ steps, activeIndex }: StepTimelineProps) {
             transition={{ delay: i * 0.08 }}
             className={cn(
               'flex items-center gap-4 px-5 py-3.5 transition-colors',
-              isActive && 'bg-blue-500/5',
+              isActive && 'bg-signal-soft',
             )}
           >
             <div className={cn('w-8 h-8 rounded-full flex items-center justify-center ring-2 shrink-0', config.ring)}>
@@ -49,16 +49,16 @@ export function StepTimeline({ steps, activeIndex }: StepTimelineProps) {
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-zinc-200">{step.action}</span>
-                <span className={cn('text-xs px-1.5 py-0.5 rounded', workerColors[step.worker] || 'bg-zinc-800 text-zinc-400')}>
+                <span className="text-sm font-medium text-ink">{step.action}</span>
+                <span className={cn('text-xs px-1.5 py-0.5 rounded', workerColors[step.worker] || 'bg-base text-muted')}>
                   {step.worker}
                 </span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5 truncate">{step.detail}</p>
+              <p className="text-xs text-muted mt-0.5 truncate">{step.detail}</p>
             </div>
 
             {step.duration_ms && (
-              <span className="text-xs text-zinc-600 tabular-nums shrink-0">
+              <span className="text-xs text-faint tabular-nums shrink-0">
                 {(step.duration_ms / 1000).toFixed(1)}s
               </span>
             )}

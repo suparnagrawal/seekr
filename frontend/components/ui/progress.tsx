@@ -21,25 +21,24 @@ const sizeStyles = {
 export function Progress({ value, max = 100, className, color, showLabel = false, size = 'md' }: ProgressProps) {
   const percentage = Math.min(100, Math.max(0, (value / max) * 100));
 
-  const getColor = () => {
-    if (color) return color;
-    if (percentage >= 80) return 'bg-emerald-500';
-    if (percentage >= 50) return 'bg-amber-500';
-    return 'bg-red-500';
-  };
+  const barColor =
+    color ??
+    (percentage >= 80 ? 'bg-mint' : percentage >= 50 ? 'bg-signal' : 'bg-ember');
 
   return (
     <div className={cn('flex items-center gap-3', className)}>
-      <div className={cn('flex-1 overflow-hidden rounded-full bg-zinc-800', sizeStyles[size])}>
+      <div className={cn('flex-1 overflow-hidden rounded-full bg-base/60 border border-line', sizeStyles[size])}>
         <motion.div
-          className={cn('h-full rounded-full', getColor())}
+          className={cn('h-full rounded-full relative', barColor)}
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
-          transition={{ duration: 1, ease: 'easeOut' }}
-        />
+          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <span className="absolute inset-0 animate-shimmer opacity-60" />
+        </motion.div>
       </div>
       {showLabel && (
-        <span className="text-sm font-medium text-zinc-300 tabular-nums">{Math.round(percentage)}%</span>
+        <span className="data-num text-sm text-ink">{Math.round(percentage)}%</span>
       )}
     </div>
   );

@@ -6,7 +6,7 @@ from backend.shared.neo4j_client import neo4j_driver
 from backend.shared.config import settings
 from backend.shared.redis_client import redis_conn
 from rq import Queue
-from rq.job import Job
+
 
 print("--- QDRANT ---")
 try:

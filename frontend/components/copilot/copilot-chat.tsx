@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Loader2, Sparkles, StopCircle } from 'lucide-react';
+import { Send, Loader2, Cpu, StopCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { streamQuery } from '@/lib/api';
 import type { CopilotMessage, Citation } from '@/lib/types';
@@ -10,10 +10,10 @@ import { MessageBubble } from './message-bubble';
 import { cn } from '@/lib/utils';
 
 interface CopilotChatProps {
-  entityTag: string;
+  entityTag?: string | null;
 }
 
-export function CopilotChat({ entityTag }: CopilotChatProps) {
+export function CopilotChat({ entityTag = null }: CopilotChatProps) {
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -87,8 +87,8 @@ export function CopilotChat({ entityTag }: CopilotChatProps) {
           ),
         );
       },
-      onToolCall: () => {},
-      onToolResult: () => {},
+      onToolCall: () => { },
+      onToolResult: () => { },
       onDone: () => {
         setMessages((prev) =>
           prev.map((m) =>
@@ -125,11 +125,17 @@ export function CopilotChat({ entityTag }: CopilotChatProps) {
     }
   };
 
-  const suggestedQueries = [
-    `What is the maintenance history of ${entityTag}?`,
-    `What are the known failure modes for ${entityTag}?`,
-    `Show compliance status for ${entityTag}`,
-  ];
+  const suggestedQueries = entityTag
+    ? [
+      `What is the maintenance history of ${entityTag}?`,
+      `What are the known failure modes for ${entityTag}?`,
+      `Show compliance status for ${entityTag}`,
+    ]
+    : [
+      'Which assets have overdue maintenance?',
+      'Summarize the highest-risk equipment right now.',
+      'What compliance gaps need attention this week?',
+    ];
 
   return (
     <div className="flex flex-col h-full">
@@ -140,16 +146,18 @@ export function CopilotChat({ entityTag }: CopilotChatProps) {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center justify-center h-full text-center px-4"
           >
-            <motion.div
-              className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center mb-4"
-              animate={{ rotate: [0, 5, -5, 0] }}
-              transition={{ duration: 4, repeat: Infinity }}
-            >
-              <Sparkles className="w-6 h-6 text-blue-400" />
-            </motion.div>
-            <h3 className="text-lg font-semibold text-zinc-200 mb-1">SEEKR Ask</h3>
-            <p className="text-sm text-zinc-500 mb-6">
-              Ask anything about <span className="text-blue-400 font-medium">{entityTag}</span>
+            <div className="relative w-12 h-12 mb-4">
+              <span className="absolute inset-0 rounded-md border border-mint/40 rotate-45" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Cpu className="w-5 h-5 text-mint" />
+              </div>
+            </div>
+            <p className="eyebrow mb-1">Copilot · cited answers</p>
+            <h3 className="font-display text-xl text-ink mb-1">Ask Seekr</h3>
+            <p className="text-sm text-muted mb-6">
+              {entityTag
+                ? <>anything about <span className="text-signal font-mono">{entityTag}</span></>
+                : 'anything across your equipment, documents & compliance'}
             </p>
             <div className="space-y-2 w-full max-w-sm">
               {suggestedQueries.map((q, i) => (
@@ -157,10 +165,11 @@ export function CopilotChat({ entityTag }: CopilotChatProps) {
                   key={i}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 + i * 0.1 }}
+                  transition={{ delay: 0.2 + i * 0.08 }}
                   onClick={() => { setInput(q); inputRef.current?.focus(); }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-zinc-400 bg-zinc-900/50 border border-zinc-800 rounded-lg hover:border-zinc-700 hover:text-zinc-300 transition-all"
+                  className="group w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-muted bg-base/40 border border-line rounded-md hover:border-signal/40 hover:text-ink transition-all"
                 >
+                  <span className="text-signal opacity-50 group-hover:opacity-100 font-mono">›</span>
                   {q}
                 </motion.button>
               ))}
@@ -169,25 +178,25 @@ export function CopilotChat({ entityTag }: CopilotChatProps) {
         ) : (
           <AnimatePresence initial={false}>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} entityTag={entityTag} />
+              <MessageBubble key={msg.id} message={msg} entityTag={entityTag ?? ''} />
             ))}
           </AnimatePresence>
         )}
       </div>
 
-      <div className="border-t border-zinc-800 px-4 py-3">
+      <div className="border-t border-line px-4 py-3">
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Ask SEEKR about ${entityTag}...`}
+            placeholder={entityTag ? `Ask about ${entityTag}…` : 'Ask Seekr anything…'}
             rows={1}
             className={cn(
-              'flex-1 resize-none rounded-lg px-4 py-2.5 text-sm',
-              'bg-zinc-900/50 border border-zinc-800 text-zinc-200 placeholder:text-zinc-500',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500',
+              'flex-1 resize-none rounded-md px-4 py-2.5 text-sm',
+              'bg-base/40 border border-line text-ink placeholder:text-faint',
+              'focus:outline-none focus:ring-2 focus:ring-signal/25 focus:border-signal',
               'min-h-[42px] max-h-32',
             )}
             style={{ height: 'auto' }}

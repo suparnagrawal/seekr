@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Network } from 'lucide-react';
+import { ArrowLeft, Waypoints } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { NodeSidePanel } from '@/components/entity/node-side-panel';
@@ -29,17 +29,18 @@ export default function EntityPage({ params }: { params: Promise<{ tag: string }
     <div className="flex h-full">
       <div className="flex-1 flex flex-col">
         <FadeIn>
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-line">
             <Link href="/">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4" />
-                Back to Graph
+                Graph
               </Button>
             </Link>
-            <div className="h-4 w-px bg-zinc-700" />
+            <div className="h-4 w-px bg-line-strong" />
             <div className="flex items-center gap-2">
-              <Network className="w-4 h-4 text-blue-400" />
-              <span className="text-sm font-medium text-zinc-300">{nodeLabel}</span>
+              <Waypoints className="w-4 h-4 text-signal" />
+              <span className="text-sm font-medium text-ink">{nodeLabel}</span>
+              <span className="font-mono text-[0.62rem] uppercase tracking-wider text-faint">{decodedTag}</span>
             </div>
           </div>
         </FadeIn>
@@ -54,7 +55,7 @@ export default function EntityPage({ params }: { params: Promise<{ tag: string }
       <motion.div
         initial={{ x: 20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className="w-[440px] border-l border-zinc-800 flex flex-col"
+        className="w-[440px] border-l border-line flex flex-col"
       >
         <NodeSidePanel tag={decodedTag} label={nodeLabel} />
       </motion.div>

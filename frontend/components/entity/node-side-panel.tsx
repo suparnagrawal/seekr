@@ -30,25 +30,24 @@ export function NodeSidePanel({ tag, label }: NodeSidePanelProps) {
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="flex flex-col h-full bg-zinc-950"
+      className="flex flex-col h-full bg-surface"
     >
-      <div className="px-5 py-4 border-b border-zinc-800">
-        <h2 className="text-lg font-semibold text-zinc-100">{label}</h2>
-        <p className="text-sm text-zinc-500 mt-0.5">Tag: {tag}</p>
+      <div className="px-5 py-4 border-b border-line">
+        <p className="eyebrow">Entity detail</p>
+        <h2 className="font-display text-2xl text-ink mt-1">{label}</h2>
+        <p className="font-mono text-[0.66rem] uppercase tracking-wider text-signal mt-0.5">{tag}</p>
       </div>
 
       <AgentInvokeBar tag={tag} />
 
-      <div className="flex border-b border-zinc-800">
+      <div className="flex border-b border-line">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
               'relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
-              activeTab === tab.id
-                ? 'text-blue-400'
-                : 'text-zinc-500 hover:text-zinc-300',
+              activeTab === tab.id ? 'text-signal' : 'text-muted hover:text-ink',
             )}
           >
             <tab.icon className="w-4 h-4" />
@@ -56,7 +55,7 @@ export function NodeSidePanel({ tag, label }: NodeSidePanelProps) {
             {activeTab === tab.id && (
               <motion.div
                 layoutId="entity-tab"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"
+                className="absolute bottom-0 left-0 right-0 h-[2px] bg-signal"
                 transition={{ type: 'spring', stiffness: 350, damping: 30 }}
               />
             )}

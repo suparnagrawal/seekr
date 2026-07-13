@@ -9,16 +9,17 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<string, string> = {
-  default: 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm',
-  destructive: 'bg-red-600 text-white hover:bg-red-700 shadow-sm',
-  outline: 'border border-zinc-700 bg-transparent hover:bg-zinc-800 text-zinc-100',
-  secondary: 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700',
-  ghost: 'hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100',
-  link: 'text-blue-400 underline-offset-4 hover:underline',
+  default:
+    'bg-signal text-base font-semibold hover:bg-signal-bright shadow-[0_6px_20px_-8px_var(--signal)]',
+  destructive: 'bg-ember text-white font-semibold hover:brightness-110',
+  outline: 'border border-line-strong bg-transparent text-ink hover:bg-surface hover:border-signal/50',
+  secondary: 'bg-surface text-ink border border-line hover:border-line-strong hover:bg-panel',
+  ghost: 'text-muted hover:bg-surface hover:text-ink',
+  link: 'text-signal underline-offset-4 hover:underline',
 };
 
 const sizeStyles: Record<string, string> = {
-  default: 'h-10 px-4 py-2 text-sm',
+  default: 'h-10 px-4 text-sm',
   sm: 'h-8 px-3 text-xs',
   lg: 'h-12 px-6 text-base',
   icon: 'h-9 w-9',
@@ -30,9 +31,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900',
-          'active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
+          'group relative inline-flex items-center justify-center gap-2 rounded-md transition-all duration-200 overflow-hidden',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/60 focus-visible:ring-offset-2 focus-visible:ring-offset-base',
+          'active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45',
           variantStyles[variant],
           sizeStyles[size],
           className,

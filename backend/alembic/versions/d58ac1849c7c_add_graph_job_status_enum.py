@@ -35,9 +35,12 @@ def upgrade() -> None:
         has_column = any(c['name'] == 'graph_job_status' for c in insp.get_columns('documents'))
         
     if has_column:
-        op.drop_column('documents', 'graph_job_status')
-        
-    op.add_column('documents', sa.Column('graph_job_status', graph_job_status_enum, nullable=True))
+        op.execute(
+            "ALTER TABLE documents ALTER COLUMN graph_job_status "
+            "TYPE graphjobstatus USING graph_job_status::text::graphjobstatus"
+        )
+    else:
+        op.add_column('documents', sa.Column('graph_job_status', graph_job_status_enum, nullable=True))
 
 
 def downgrade() -> None:

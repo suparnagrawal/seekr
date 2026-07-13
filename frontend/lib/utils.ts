@@ -33,25 +33,29 @@ export function truncate(str: string, length: number): string {
   return str.slice(0, length) + '…';
 }
 
+/**
+ * Knowledge-graph node palette — a warm-biased industrial spectrum tuned to
+ * read on both the light (paper) and dark (graphite) canvases.
+ */
 export function getNodeColor(type: string): string {
   const colors: Record<string, string> = {
-    equipment: '#3b82f6',
-    document: '#8b5cf6',
-    procedure: '#10b981',
-    system: '#f59e0b',
-    component: '#06b6d4',
-    failure_mode: '#ef4444',
+    equipment: '#f5a524',    // signal amber (the hero type)
+    system: '#ff6a3d',       // ember orange
+    component: '#ffd166',    // gold
+    procedure: '#3fd6b0',    // mint
+    document: '#9fb4c7',     // steel / neutral
+    failure_mode: '#ff5470', // hot alarm
   };
-  return colors[type] || '#6b7280';
+  return colors[type] || '#8b8477';
 }
 
 export function getStatusColor(status: 'red' | 'amber' | 'green'): string {
-  const colors = { red: '#ef4444', amber: '#f59e0b', green: '#10b981' };
+  const colors = { red: '#ff5470', amber: '#f5a524', green: '#3fd6b0' };
   return colors[status];
 }
 
 export function getRiskColor(score: number): string {
-  if (score >= 0.7) return '#ef4444';
-  if (score >= 0.4) return '#f59e0b';
-  return '#10b981';
+  if (score >= 0.7) return '#ff5470';
+  if (score >= 0.4) return '#f5a524';
+  return '#3fd6b0';
 }

@@ -64,7 +64,7 @@ async def route(escalation: EscalationContext) -> WorkerType:
     # Strategy 1: LLM-based routing
     messages = [
         {"role": "system", "content": ROUTING_PROMPT},
-        {"role": "user", "content": f"Query: {escalation.query}\nTrigger Reason: {escalation.trigger_reason}"}
+        {"role": "user", "content": f"<request>\nQuery: {escalation.query}\nTrigger Reason: {escalation.trigger_reason}\n</request>"}
     ]
     
     try:

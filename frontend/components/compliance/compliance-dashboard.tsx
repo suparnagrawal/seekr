@@ -6,8 +6,8 @@ import { Shield, AlertTriangle, CheckCircle2, AlertCircle } from 'lucide-react';
 import { streamAgent } from '@/lib/api';
 import type { ComplianceReport, ComplianceGap } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 import { FadeIn } from '@/components/animations/fade-in';
 import { StaggerChildren, StaggerItem } from '@/components/animations/stagger-children';
 import { GapCard } from './gap-card';
@@ -86,13 +86,12 @@ export function ComplianceDashboard() {
   if (loading || !report) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3">
-          <motion.div
-            className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          />
-          <p className="text-sm text-zinc-500">Running compliance agent...</p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-10 h-10">
+            <motion.span className="absolute inset-0 rounded-full border border-signal/40" animate={{ scale: [1, 1.6], opacity: [0.7, 0] }} transition={{ duration: 1.5, repeat: Infinity }} />
+            <div className="absolute inset-[30%] rounded-full bg-signal animate-signal" />
+          </div>
+          <p className="font-mono text-xs uppercase tracking-widest text-muted">running compliance agent…</p>
         </div>
       </div>
     );
@@ -100,7 +99,7 @@ export function ComplianceDashboard() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64 text-sm text-zinc-500">
+      <div className="flex items-center justify-center h-64 text-sm text-muted">
         Failed to load compliance data: {error}
       </div>
     );
@@ -113,57 +112,60 @@ export function ComplianceDashboard() {
     green: report.gaps.filter((g) => g.status === 'green').length,
   };
 
+  const statCards = [
+    { status: 'red' as const, label: 'Critical', icon: AlertTriangle, count: counts.red, tone: 'text-ember', chip: 'bg-ember-soft' },
+    { status: 'amber' as const, label: 'Warning', icon: AlertCircle, count: counts.amber, tone: 'text-signal', chip: 'bg-signal-soft' },
+    { status: 'green' as const, label: 'Compliant', icon: CheckCircle2, count: counts.green, tone: 'text-mint', chip: 'bg-mint-soft' },
+  ];
+
   return (
     <div className="p-6 space-y-6">
       <FadeIn>
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-emerald-400" />
+        <p className="eyebrow">Regulatory · continuous audit</p>
+        <div className="flex items-center gap-3 mt-2">
+          <div className="w-10 h-10 rounded-md border border-line bg-mint-soft flex items-center justify-center">
+            <Shield className="w-5 h-5 text-mint" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-zinc-100">Compliance Overview</h1>
-            <p className="text-sm text-zinc-500">{report.checked} items checked across all equipment</p>
+            <h1 className="font-display text-3xl font-medium text-ink">Compliance Overview</h1>
+            <p className="text-sm text-muted">{report.checked} checks across the asset base</p>
           </div>
         </div>
       </FadeIn>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <FadeIn delay={0.1}>
-          <Card className="p-5">
+          <Card ticked className="p-6">
             <div className="text-center">
+              <p className="eyebrow mb-2">overall score</p>
               <motion.div
-                className="text-5xl font-bold bg-gradient-to-b from-zinc-100 to-zinc-400 bg-clip-text text-transparent"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
+                className="font-display text-6xl font-light text-ink data-num"
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 0.3 }}
               >
                 {report.score}
               </motion.div>
-              <p className="text-sm text-zinc-500 mt-1">Overall Score</p>
-              <Progress value={report.score} className="mt-3" size="sm" />
+              <Progress value={report.score} className="mt-4" size="sm" />
             </div>
           </Card>
         </FadeIn>
 
-        {([
-          { status: 'red' as const, label: 'Critical', icon: AlertTriangle, count: counts.red, variant: 'destructive' as const },
-          { status: 'amber' as const, label: 'Warning', icon: AlertCircle, count: counts.amber, variant: 'warning' as const },
-          { status: 'green' as const, label: 'Compliant', icon: CheckCircle2, count: counts.green, variant: 'success' as const },
-        ]).map((item, i) => (
+        {statCards.map((item, i) => (
           <FadeIn key={item.status} delay={0.15 + i * 0.05}>
             <Card
               hover
               onClick={() => setFilter(filter === item.status ? 'all' : item.status)}
-              className={filter === item.status ? 'ring-1 ring-blue-500/50' : ''}
+              className={filter === item.status ? 'border-signal/50 shadow-[0_18px_50px_-30px_var(--shadow)]' : ''}
             >
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-zinc-100">{item.count}</p>
-                    <p className="text-sm text-zinc-500">{item.label}</p>
+                    <p className={cn('font-display text-4xl font-light data-num', item.tone)}>{item.count}</p>
+                    <p className="eyebrow mt-1">{item.label}</p>
                   </div>
-                  <div className={`p-2 rounded-lg bg-${item.status === 'red' ? 'red' : item.status === 'amber' ? 'amber' : 'emerald'}-500/10`}>
-                    <item.icon className={`w-5 h-5 text-${item.status === 'red' ? 'red' : item.status === 'amber' ? 'amber' : 'emerald'}-400`} />
+                  <div className={cn('p-2.5 rounded-md border border-line', item.chip)}>
+                    <item.icon className={cn('w-5 h-5', item.tone)} />
                   </div>
                 </div>
               </CardContent>
@@ -174,19 +176,19 @@ export function ComplianceDashboard() {
 
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-zinc-200">
+          <h2 className="font-display text-xl text-ink">
             Equipment Status
-            {filter !== 'all' && <span className="text-sm text-zinc-500 ml-2">({filter} only)</span>}
+            {filter !== 'all' && <span className="text-sm font-sans text-faint ml-2">· {filter} only</span>}
           </h2>
           {filter !== 'all' && (
-            <button onClick={() => setFilter('all')} className="text-sm text-blue-400 hover:underline">
+            <button onClick={() => setFilter('all')} className="text-sm text-signal hover:underline">
               Show all
             </button>
           )}
         </div>
 
         {filtered.length === 0 ? (
-          <p className="text-sm text-zinc-500 text-center py-8">No equipment matches the selected filter</p>
+          <p className="text-sm text-muted text-center py-8">No equipment matches the selected filter</p>
         ) : (
           <StaggerChildren className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {filtered.map((gap) => (

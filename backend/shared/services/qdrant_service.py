@@ -57,6 +57,48 @@ class QdrantService:
         namespace = uuid.UUID(settings.QDRANT_NAMESPACE_UUID)
         return str(uuid.uuid5(namespace, chunk_id))
         
+    def get_existing_chunk_ids(self, document_id: str) -> set[str]:
+        """
+        Retrieves all original chunk_ids that have already been embedded and stored
+        in Qdrant for a given document. Used for idempotent job resumption.
+        """
+        client = self._get_client()
+        from qdrant_client.http import models
+        
+        chunk_ids = set()
+        offset = None
+        
+        try:
+            while True:
+                records, next_page_offset = client.scroll(
+                    collection_name=self.collection_name,
+                    scroll_filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="document_id",
+                                match=models.MatchValue(value=document_id)
+                            )
+                        ]
+                    ),
+                    with_payload=["chunk_id"],
+                    with_vectors=False,
+                    limit=100,
+                    offset=offset
+                )
+                
+                for record in records:
+                    if record.payload and "chunk_id" in record.payload:
+                        chunk_ids.add(record.payload["chunk_id"])
+                        
+                if next_page_offset is None:
+                    break
+                offset = next_page_offset
+                
+            return chunk_ids
+        except Exception as e:
+            logger.warning("Failed to retrieve existing chunk IDs, assuming none exist", document_id=document_id, error=str(e))
+            return set()
+
     def upsert_chunks(self, document_id: str, chunks: list[dict[str, Any]], embeddings: list[list[float]], embedding_model: str):
         """
         Upserts a batch of chunks and their corresponding embeddings into Qdrant.

@@ -46,15 +46,15 @@ const CYTOSCAPE_STYLE: any[] = [
   {
     selector: 'node:selected',
     style: {
-      'border-color': '#3b82f6',
-      'border-width': 3,
-      'background-color': '#3b82f6',
+      'border-color': '#f5a524',
+      'border-width': 4,
+      'background-color': '#f5a524',
     },
   },
   {
     selector: 'node.highlighted',
     style: {
-      'border-color': '#60a5fa',
+      'border-color': '#ffbe4d',
       'border-width': 3,
     },
   },
@@ -101,8 +101,8 @@ const CYTOSCAPE_STYLE: any[] = [
   {
     selector: 'edge.highlighted',
     style: {
-      'line-color': '#60a5fa',
-      'target-arrow-color': '#60a5fa',
+      'line-color': '#f5a524',
+      'target-arrow-color': '#f5a524',
       width: 3,
     },
   },
@@ -293,53 +293,77 @@ export function GraphExplorer() {
   };
 
   return (
-    <div className="relative bg-zinc-950 w-full" style={{ height: 'calc(100vh - 56px)' }}>
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+    <div
+      className="relative w-full scanlines overflow-hidden"
+      style={{ height: 'calc(100vh - 56px)', background: 'radial-gradient(120% 90% at 50% 0%, #14110b 0%, #0a0806 70%)' }}
+    >
+      {/* instrument-screen grid */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.5]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(245,165,36,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(245,165,36,0.04) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      />
+      {/* scan beam — cheap GPU-composited vertical sweep */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="graph-scan absolute left-0 right-0 h-24" />
+      </div>
+      <div ref={containerRef} className="relative" style={{ width: '100%', height: '100%' }} />
+
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 pointer-events-none">
+        <span className="w-1.5 h-1.5 rounded-full bg-signal animate-signal" />
+        <span className="font-mono text-[0.62rem] uppercase tracking-[0.2em] text-[#a89a82]">
+          knowledge graph · {centeredNode || config.defaultEntityTag}
+        </span>
+      </div>
 
       {isLoading && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute inset-0 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm z-20"
+          className="absolute inset-0 flex items-center justify-center backdrop-blur-sm z-20"
+          style={{ background: 'rgba(10,8,6,0.6)' }}
         >
-          <div className="flex flex-col items-center gap-3">
-            <motion.div
-              className="w-10 h-10 rounded-full border-2 border-blue-500 border-t-transparent"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-            />
-            <p className="text-sm text-zinc-400">Loading knowledge graph...</p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative w-12 h-12">
+              <motion.span className="absolute inset-0 rounded-full border border-signal/40" animate={{ scale: [1, 1.6], opacity: [0.7, 0] }} transition={{ duration: 1.5, repeat: Infinity }} />
+              <div className="absolute inset-[30%] rounded-full bg-signal animate-signal" />
+            </div>
+            <p className="font-mono text-xs uppercase tracking-widest text-[#a89a82]">tracing graph…</p>
           </div>
         </motion.div>
       )}
 
       {error && !isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center z-20">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 max-w-md text-center">
-            <p className="text-sm text-zinc-400 mb-3">{error}</p>
+        <div className="absolute inset-0 flex items-center justify-center z-20 p-4">
+          <div className="hud rounded-lg p-6 max-w-md text-center">
+            <p className="text-sm hud-text mb-4">{error}</p>
             <Button variant="outline" size="sm" onClick={() => loadGraph(config.defaultEntityTag, depth)}>
-              Retry
+              <RotateCcw className="w-3.5 h-3.5" /> Retry
             </Button>
           </div>
         </div>
       )}
 
-      <div className="absolute bottom-4 left-4 flex items-center gap-1 z-10">
-        <Button variant="secondary" size="icon" onClick={handleZoomIn} title="Zoom in">
-          <Plus className="w-4 h-4" />
-        </Button>
-        <Button variant="secondary" size="icon" onClick={handleZoomOut} title="Zoom out">
-          <Minus className="w-4 h-4" />
-        </Button>
-        <Button variant="secondary" size="icon" onClick={handleFit} title="Fit to view">
-          <RotateCcw className="w-4 h-4" />
-        </Button>
-        <Button variant="secondary" size="icon" onClick={handleCenter} title="Center on focus">
-          <Crosshair className="w-4 h-4" />
-        </Button>
-        <Button variant="secondary" size="icon" onClick={toggleFullscreen} title="Fullscreen">
-          <Maximize2 className="w-4 h-4" />
-        </Button>
+      <div className="absolute bottom-4 left-4 flex items-center gap-1 z-10 hud rounded-md p-1">
+        {[
+          { fn: handleZoomIn, icon: Plus, title: 'Zoom in' },
+          { fn: handleZoomOut, icon: Minus, title: 'Zoom out' },
+          { fn: handleFit, icon: RotateCcw, title: 'Fit to view' },
+          { fn: handleCenter, icon: Crosshair, title: 'Center on focus' },
+          { fn: toggleFullscreen, icon: Maximize2, title: 'Fullscreen' },
+        ].map(({ fn, icon: Icon, title }) => (
+          <button
+            key={title}
+            onClick={fn}
+            title={title}
+            className="flex items-center justify-center w-9 h-9 rounded text-[#c9bfa8] hover:text-signal hover:bg-white/5 transition-colors"
+          >
+            <Icon className="w-4 h-4" />
+          </button>
+        ))}
       </div>
 
       <GraphControls depth={depth} onDepthChange={setDepth} />

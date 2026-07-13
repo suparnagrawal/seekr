@@ -4,15 +4,17 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   hover?: boolean;
+  ticked?: boolean;
   onClick?: () => void;
 }
 
-export function Card({ children, className, hover = false, onClick }: CardProps) {
+export function Card({ children, className, hover = false, ticked = false, onClick }: CardProps) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm',
-        hover && 'cursor-pointer transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/80 hover:shadow-lg hover:shadow-blue-500/5',
+        'relative rounded-lg panel',
+        ticked && 'ticked',
+        hover && 'transition-all duration-300 hover:border-signal/40 hover:shadow-[0_18px_50px_-30px_var(--shadow)]',
         onClick && 'cursor-pointer',
         className,
       )}
@@ -24,7 +26,7 @@ export function Card({ children, className, hover = false, onClick }: CardProps)
 }
 
 export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('px-5 py-4 border-b border-zinc-800', className)}>{children}</div>;
+  return <div className={cn('px-5 py-4 border-b border-line', className)}>{children}</div>;
 }
 
 export function CardContent({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -32,5 +34,5 @@ export function CardContent({ children, className }: { children: React.ReactNode
 }
 
 export function CardFooter({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('px-5 py-3 border-t border-zinc-800', className)}>{children}</div>;
+  return <div className={cn('px-5 py-3 border-t border-line', className)}>{children}</div>;
 }

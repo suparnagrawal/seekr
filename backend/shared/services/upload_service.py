@@ -149,9 +149,52 @@ class UploadService:
                 exc_info=True
             )
             
-            # Delegate to CleanupService
             self.cleanup.cleanup_failed_upload(document_id, error_message=str(e))
             raise InfrastructureError(message="Failed to enqueue background job.", service="Redis")
+
+    def retry_upload(self, document_id: str) -> tuple[uuid.UUID, str, str]:
+        """
+        Retries a failed upload by resetting its state and re-enqueueing the processing job.
+        """
+        from backend.shared.models.document import DocumentStatus, GraphJobStatus
+        
+        doc = self.repo.get_by_id(document_id)
+        if not doc:
+            raise ValidationFailedError("Document not found.")
+            
+        # Optional: You can choose to allow retry only if the document is in a FAILED state,
+        # but for robustness we allow retrying any document that hasn't successfully completed.
+        if doc.status == DocumentStatus.COMPLETED.value:
+            raise ValidationFailedError("Cannot retry a successfully completed document.")
+            
+        # Reconstruct the S3 URI
+        stored_path = f"s3://{self.storage.bucket}/{self.storage.get_object_key(document_id, doc.stored_filename)}"
+        
+        try:
+            job = self.queue.enqueue(
+                "backend.ingestion_worker.jobs.process_document_job",
+                kwargs={
+                    "document_id": str(document_id),
+                    "stored_path": stored_path
+                },
+                job_id=f"ingest_{document_id}",
+                job_timeout=settings.RQ_DOC_PARSE_TIMEOUT,
+                retry=get_default_retry(),
+                result_ttl=86400
+            )
+            
+            # Reset document state back to QUEUED
+            doc.status = DocumentStatus.QUEUED.value
+            doc.graph_job_status = None
+            doc.error_message = None
+            self.repo.db.commit()
+            
+            logger.info("Document retry sequence initiated", document_id=str(document_id), job_id=job.id)
+            return doc.id, job.id, doc.status
+            
+        except Exception as e:
+            logger.error("Failed to enqueue retry job", document_id=str(document_id), error=str(e), exc_info=True)
+            raise InfrastructureError("Failed to enqueue retry job.", service="Redis")
 
 def get_upload_service(
     repo: DocumentRepository = Depends(get_document_repository),

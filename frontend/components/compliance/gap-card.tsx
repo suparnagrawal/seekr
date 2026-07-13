@@ -14,30 +14,9 @@ interface GapCardProps {
 }
 
 const statusConfig = {
-  red: {
-    icon: AlertTriangle,
-    color: 'text-red-400',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/20',
-    badge: 'destructive' as const,
-    label: 'Critical',
-  },
-  amber: {
-    icon: AlertCircle,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-    badge: 'warning' as const,
-    label: 'Warning',
-  },
-  green: {
-    icon: CheckCircle2,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-    badge: 'success' as const,
-    label: 'Compliant',
-  },
+  red: { icon: AlertTriangle, color: 'text-ember', bg: 'bg-ember-soft', badge: 'destructive' as const, label: 'Critical' },
+  amber: { icon: AlertCircle, color: 'text-signal', bg: 'bg-signal-soft', badge: 'warning' as const, label: 'Warning' },
+  green: { icon: CheckCircle2, color: 'text-mint', bg: 'bg-mint-soft', badge: 'success' as const, label: 'Compliant' },
 };
 
 export function GapCard({ gap }: GapCardProps) {
@@ -46,7 +25,7 @@ export function GapCard({ gap }: GapCardProps) {
   const Icon = config.icon;
 
   return (
-    <Card className={cn('transition-all', expanded && 'ring-1 ring-zinc-700')}>
+    <Card className={cn('transition-all', expanded && 'border-signal/40')}>
       <CardContent className="p-4">
         <div
           className="flex items-center gap-3 cursor-pointer"
@@ -57,16 +36,16 @@ export function GapCard({ gap }: GapCardProps) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-zinc-200 truncate">{gap.equipment_name}</span>
+              <span className="text-sm font-medium text-ink truncate">{gap.equipment_name}</span>
               <Badge variant={config.badge}>{config.label}</Badge>
             </div>
-            <p className="text-xs text-zinc-500 mt-0.5">{gap.regulation}</p>
+            <p className="text-xs text-muted mt-0.5">{gap.regulation}</p>
           </div>
           <motion.div
             animate={{ rotate: expanded ? 180 : 0 }}
             transition={{ duration: 0.2 }}
           >
-            <ChevronDown className="w-4 h-4 text-zinc-500" />
+            <ChevronDown className="w-4 h-4 text-muted" />
           </motion.div>
         </div>
 
@@ -79,13 +58,13 @@ export function GapCard({ gap }: GapCardProps) {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="pt-3 mt-3 border-t border-zinc-800 space-y-3">
+              <div className="pt-3 mt-3 border-t border-line space-y-3">
                 {gap.missing_evidence.length > 0 ? (
                   <div>
-                    <p className="text-xs font-medium text-zinc-400 mb-1.5">Missing Evidence</p>
+                    <p className="text-xs font-medium text-muted mb-1.5">Missing Evidence</p>
                     <ul className="space-y-1">
                       {gap.missing_evidence.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                        <li key={i} className="flex items-start gap-2 text-sm text-ink">
                           <span className="text-red-500 mt-0.5">•</span>
                           {item}
                         </li>
@@ -96,11 +75,11 @@ export function GapCard({ gap }: GapCardProps) {
                   <p className="text-sm text-emerald-400">All evidence documentation is up to date.</p>
                 )}
 
-                <div className="flex items-center justify-between text-xs text-zinc-500">
+                <div className="flex items-center justify-between text-xs text-muted">
                   <span>Last checked: {formatDate(gap.last_checked)}</span>
                   <Link
                     href={`/entity/${encodeURIComponent(gap.equipment_tag)}`}
-                    className="flex items-center gap-1 text-blue-400 hover:underline"
+                    className="flex items-center gap-1 text-signal hover:underline"
                   >
                     View details <ExternalLink className="w-3 h-3" />
                   </Link>

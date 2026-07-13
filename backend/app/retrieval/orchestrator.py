@@ -6,9 +6,10 @@ from backend.app.retrieval.context import ContextAssembler
 from backend.app.retrieval.pipeline import DefaultRetrievalPipeline
 from backend.app.retrieval.fusion import ReciprocalRankFusion
 from backend.app.retrieval.retrievers.dense import DenseRetriever
-# from backend.app.retrieval.retrievers.keyword import KeywordRetriever
+from backend.app.retrieval.retrievers.keyword import KeywordRetriever
 from backend.app.retrieval.retrievers.graph import GraphRetriever
 from backend.shared.services.embedding_service import get_embedding_service
+from backend.shared.config import settings
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -22,8 +23,17 @@ def get_fusion_strategy() -> ReciprocalRankFusion:
     return ReciprocalRankFusion()
 
 def get_retrieval_pipeline() -> DefaultRetrievalPipeline:
+    # Three-pathway fusion: dense (Qdrant), graph (Neo4j traversal), and lexical
+    # (Postgres FTS). The lexical pathway restores exact-match recall for tags,
+    # part numbers, and error codes that dense retrieval underperforms on. It is
+    # fail-soft (BaseRetriever wraps it), so an absent `chunks.fts` column yields
+    # an empty contribution rather than an error.
+    retrievers: list = [DenseRetriever(), GraphRetriever()]
+    if settings.RETRIEVAL_ENABLE_KEYWORD:
+        retrievers.append(KeywordRetriever())
+
     return DefaultRetrievalPipeline(
-        retrievers=[DenseRetriever(), GraphRetriever()],
+        retrievers=retrievers,
         fusion_strategy=get_fusion_strategy(),
         context_assembler=get_context_assembler()
     )

@@ -14,6 +14,7 @@ class TraversalContext:
     implicit_tags: List[str]
     query_type: QueryType
     query_embedding: List[float]
+    target_relationship_types: List[str] = field(default_factory=list)
 
 @dataclass
 class RankedSeed:
@@ -26,6 +27,7 @@ class ScoredNode:
     score: float
     depth: int
     entity_type: str = "Unknown"
+    description: Optional[str] = None
 
 @dataclass
 class Edge:
@@ -35,6 +37,7 @@ class Edge:
     confidence: float
     fact_id: str
     source_doc_id: str
+    description: Optional[str] = None
 
 @dataclass
 class Chunk:

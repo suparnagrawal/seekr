@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy.pool import NullPool
 from collections.abc import Generator
 from psycopg_pool import AsyncConnectionPool
 import structlog
@@ -12,9 +13,7 @@ logger = structlog.get_logger(__name__)
 try:
     engine = create_engine(
         settings.database_url.replace("postgresql://", "postgresql+psycopg://", 1),
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
+        poolclass=NullPool,
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     logger.info("PostgreSQL engine initialized.")

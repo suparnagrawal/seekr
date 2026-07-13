@@ -5,17 +5,26 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Network, MessageCircle, Shield, Activity, FileText,
-  ChevronLeft, ChevronRight, LogOut, User, Zap,
+  Waypoints, ShieldCheck, FolderCog, ChevronLeft, ChevronRight, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 
 const NAV_ITEMS = [
-  { href: '/', icon: Network, label: 'Graph Explorer', permission: 'graph:read' },
-  { href: '/compliance', icon: Shield, label: 'Compliance', permission: 'compliance:read' },
-  { href: '/documents', icon: FileText, label: 'Documents', permission: 'graph:read' },
+  { href: '/', icon: Waypoints, label: 'Graph Explorer', code: 'G-01', permission: 'graph:read' },
+  { href: '/compliance', icon: ShieldCheck, label: 'Compliance', code: 'C-02', permission: 'compliance:read' },
+  { href: '/documents', icon: FolderCog, label: 'Documents', code: 'D-03', permission: 'graph:read' },
 ];
+
+function ReactorMark() {
+  return (
+    <div className="relative flex items-center justify-center w-9 h-9 shrink-0">
+      <span className="absolute inset-0 rounded-md border border-signal/50 rotate-45" />
+      <span className="absolute inset-[6px] rounded-full bg-signal animate-signal" />
+      <span className="absolute inset-0 rounded-md border border-line" />
+    </div>
+  );
+}
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -23,85 +32,93 @@ export function Sidebar() {
   const { user, logout, hasPermission } = useAuth();
 
   const filteredItems = NAV_ITEMS.filter((item) => hasPermission(item.permission));
+  const initials = (user?.display_name || 'U').split(' ').map((s) => s[0]).slice(0, 2).join('');
 
   return (
     <motion.aside
       initial={false}
-      animate={{ width: collapsed ? 72 : 256 }}
-      transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="relative flex flex-col h-full border-r border-zinc-800 bg-zinc-950/80 backdrop-blur-xl"
+      animate={{ width: collapsed ? 76 : 248 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="relative z-30 flex flex-col h-full border-r border-line bg-surface/70 backdrop-blur-xl"
     >
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-zinc-800">
-        <motion.div
-          className="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Zap className="w-5 h-5 text-white" />
-        </motion.div>
+      {/* Wordmark */}
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-line">
+        <ReactorMark />
         <AnimatePresence>
           {!collapsed && (
             <motion.div
-              initial={{ opacity: 0, x: -10 }}
+              initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
+              exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.2 }}
+              className="leading-none"
             >
-              <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+              <h1 className="font-display text-[1.55rem] font-semibold tracking-tight text-ink">
                 SEEKR
               </h1>
-              <p className="text-[10px] text-zinc-500 -mt-0.5 tracking-wider">INDUSTRIAL AI</p>
+              <p className="eyebrow mt-1">Knowledge Foundry</p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      <nav className="flex-1 py-4 px-3 space-y-1">
+      <div className="px-4 pt-5 pb-2">
+        {!collapsed && <p className="eyebrow">Navigation</p>}
+      </div>
+
+      <nav className="flex-1 px-3 space-y-1">
         {filteredItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-
           return (
             <Link key={item.href} href={item.href}>
               <motion.div
                 className={cn(
-                  'relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'text-blue-300'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50',
+                  'group relative flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors',
+                  isActive ? 'text-signal' : 'text-muted hover:text-ink hover:bg-base/40',
                 )}
-                whileHover={{ x: 2 }}
                 whileTap={{ scale: 0.98 }}
               >
                 {isActive && (
                   <motion.div
                     layoutId="sidebar-active"
-                    className="absolute inset-0 rounded-lg bg-blue-500/10 border border-blue-500/20"
-                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    className="absolute inset-0 rounded-md bg-signal-soft border border-signal/25"
+                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                   />
                 )}
-                <item.icon className="w-5 h-5 shrink-0 relative z-10" />
+                {isActive && (
+                  <motion.span
+                    layoutId="sidebar-rail"
+                    className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-signal"
+                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                  />
+                )}
+                <item.icon className="w-[18px] h-[18px] shrink-0 relative z-10" />
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span
-                      initial={{ opacity: 0, x: -10 }}
+                      initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      className="relative z-10 whitespace-nowrap"
+                      exit={{ opacity: 0, x: -8 }}
+                      className="relative z-10 flex-1 whitespace-nowrap font-medium"
                     >
                       {item.label}
                     </motion.span>
                   )}
                 </AnimatePresence>
+                {!collapsed && (
+                  <span className="relative z-10 font-mono text-[0.62rem] text-faint">{item.code}</span>
+                )}
               </motion.div>
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-zinc-800 p-3">
-        <div className={cn('flex items-center gap-3 px-3 py-2', collapsed && 'justify-center')}>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0">
-            <User className="w-4 h-4 text-white" />
+      {/* User */}
+      <div className="border-t border-line p-3">
+        <div className={cn('flex items-center gap-3 px-2 py-1.5', collapsed && 'justify-center')}>
+          <div className="w-9 h-9 rounded-md border border-line-strong bg-base/60 flex items-center justify-center shrink-0">
+            <span className="font-mono text-xs font-semibold text-signal uppercase">{initials}</span>
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -111,13 +128,13 @@ export function Sidebar() {
                 exit={{ opacity: 0 }}
                 className="flex-1 min-w-0"
               >
-                <p className="text-sm font-medium text-zinc-200 truncate">{user?.display_name}</p>
-                <p className="text-xs text-zinc-500 capitalize">{user?.role?.replace('_', ' ')}</p>
+                <p className="text-sm font-medium text-ink truncate">{user?.display_name}</p>
+                <p className="font-mono text-[0.62rem] text-faint uppercase tracking-wider">{user?.role?.replace('_', ' ')}</p>
               </motion.div>
             )}
           </AnimatePresence>
           {!collapsed && (
-            <button onClick={logout} className="text-zinc-500 hover:text-zinc-300 transition-colors" title="Logout">
+            <button onClick={logout} className="text-faint hover:text-ember transition-colors" title="Sign out">
               <LogOut className="w-4 h-4" />
             </button>
           )}
@@ -126,7 +143,8 @@ export function Sidebar() {
 
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors z-50"
+        className="absolute -right-3 top-[68px] w-6 h-6 rounded-full bg-panel border border-line-strong flex items-center justify-center text-muted hover:text-signal hover:border-signal/50 transition-colors z-40"
+        title={collapsed ? 'Expand' : 'Collapse'}
       >
         {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
       </button>

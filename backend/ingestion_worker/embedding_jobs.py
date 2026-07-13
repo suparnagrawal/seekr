@@ -40,51 +40,91 @@ def process_embedding_job(document_id: str) -> dict[str, Any]:
         repo.db.commit()
         
         try:
-            # 2. Read chunks.json
-            chunks_path = Path(storage_manager.get_document_dir(document_id)) / "chunks.json"
-            if not chunks_path.exists():
-                raise IngestionPipelineError("chunks.json artifact not found", stage="Embedding")
+            # 2. Read chunks.jsonl iteratively from S3/Storage
+            artifact_uri = storage_manager.get_artifact_uri(document_id, "chunks.jsonl")
+            try:
+                temp_chunks_path = storage_manager.download_to_tempfile(artifact_uri)
+            except Exception as e:
+                raise IngestionPipelineError(f"chunks.jsonl artifact not found or failed to download: {e}", stage="Embedding")
                 
-            with chunks_path.open("r", encoding="utf-8") as f:
-                chunks = json.load(f)
+            chunks_path = Path(temp_chunks_path)
                 
-            if not chunks:
-                logger.warning("No chunks found in chunks.json", document_id=document_id)
-                repo.update_status(document_id, DocumentStatus.COMPLETED.value)
-                repo.db.commit()
-                return {"status": "success", "message": "No chunks to embed"}
-                
-            # Populate chunk filename if not present
-            for c in chunks:
-                if "filename" not in c:
-                    c["filename"] = doc.filename
-                    
-            # 3. Generate Embeddings in Batches
-            texts = [chunk["text"] for chunk in chunks]
-            embeddings = []
-            batch_size = 32
+            # 3. Resume / Idempotency Check
+            existing_chunk_ids = qdrant_service.get_existing_chunk_ids(document_id)
+            if existing_chunk_ids:
+                logger.info("Found existing chunks in Qdrant, resuming job", document_id=document_id, existing_count=len(existing_chunk_ids))
             
-            for i in range(0, len(texts), batch_size):
-                batch_texts = texts[i:i+batch_size]
-                batch_embeddings = embedding_service.embed_batch(batch_texts)
-                embeddings.extend(batch_embeddings)
-            
-            # Transition to EMBEDDED
-            repo.mark_embedded(document_id, settings.EMBEDDING_MODEL, datetime.now(timezone.utc))
-            repo.db.commit()
-            
-            # 4. Upsert to Qdrant (INDEXING)
+            # Mark as indexing immediately since we interleave it
             repo.mark_indexing(document_id)
             repo.db.commit()
             
-            qdrant_service.upsert_chunks(
-                document_id=document_id,
-                chunks=chunks,
-                embeddings=embeddings,
-                embedding_model=settings.EMBEDDING_MODEL
-            )
+            total_processed = 0
+            total_chunks = 0
+            batch_size = 32
             
-            # Transition to EMBEDDED and check state convergence
+            with chunks_path.open("r", encoding="utf-8") as f:
+                batch_chunks = []
+                batch_texts = []
+                
+                for line in f:
+                    if not line.strip():
+                        continue
+                    
+                    total_chunks += 1
+                    c = json.loads(line)
+                    
+                    # Skip chunks that are already in Qdrant
+                    if c["id"] in existing_chunk_ids:
+                        continue
+                        
+                    # Populate chunk filename if not present
+                    if "filename" not in c:
+                        c["filename"] = doc.filename
+                        
+                    batch_chunks.append(c)
+                    batch_texts.append(c["text"])
+                    
+                    # Generate Embeddings and Upsert in Batches
+                    if len(batch_chunks) >= batch_size:
+                        logger.info("Processing embedding batch", document_id=document_id, batch_size=len(batch_texts))
+                        batch_embeddings = embedding_service.embed_batch(batch_texts)
+                        
+                        # Upsert immediately to save state in Qdrant
+                        qdrant_service.upsert_chunks(
+                            document_id=document_id,
+                            chunks=batch_chunks,
+                            embeddings=batch_embeddings,
+                            embedding_model=settings.EMBEDDING_MODEL
+                        )
+                        
+                        total_processed += len(batch_embeddings)
+                        logger.info("Finished embedding and indexing batch", document_id=document_id, current_total=total_processed)
+                        
+                        # Clear batch memory
+                        batch_chunks = []
+                        batch_texts = []
+                
+                # 4. Process any remaining chunks in the final batch
+                if batch_chunks:
+                    logger.info("Processing final embedding batch", document_id=document_id, batch_size=len(batch_texts))
+                    batch_embeddings = embedding_service.embed_batch(batch_texts)
+                    
+                    qdrant_service.upsert_chunks(
+                        document_id=document_id,
+                        chunks=batch_chunks,
+                        embeddings=batch_embeddings,
+                        embedding_model=settings.EMBEDDING_MODEL
+                    )
+                    total_processed += len(batch_embeddings)
+                    logger.info("Finished final embedding and indexing batch", document_id=document_id, current_total=total_processed)
+            
+            if total_processed == 0 and total_chunks == 0:
+                logger.warning("No chunks found in chunks.jsonl", document_id=document_id)
+                repo.update_status(document_id, DocumentStatus.COMPLETED.value)
+                repo.db.commit()
+                return {"status": "success", "message": "No chunks to embed"}
+            
+            # 5. Transition to EMBEDDED and check state convergence
             time_ms = int((time.time() - start_time) * 1000)
             repo.mark_embedded(document_id, settings.EMBEDDING_MODEL, datetime.now(timezone.utc))
             
@@ -95,11 +135,15 @@ def process_embedding_job(document_id: str) -> dict[str, Any]:
                 
             repo.db.commit()
             
-            logger.info("Embedding and Indexing completed successfully", document_id=document_id, time_ms=time_ms, count=len(chunks))
+            logger.info("Embedding and Indexing completed successfully", document_id=document_id, time_ms=time_ms, count=total_chunks)
+            if chunks_path.exists():
+                import os
+                os.remove(chunks_path)
+                
             return {
                 "status": "success",
                 "document_id": document_id,
-                "chunk_count": len(chunks),
+                "chunk_count": total_chunks,
                 "time_ms": time_ms
             }
             

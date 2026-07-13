@@ -77,6 +77,46 @@ export async function uploadDocument(file: File): Promise<{ document_id: string;
   return res.json();
 }
 
+export async function retryDocument(documentId: string): Promise<{ document_id: string; job_id: string; status: string }> {
+  const res = await fetch(`${API_V1}/retry/${encodeURIComponent(documentId)}`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Retry failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Document ingestion status (real /status/{document_id} endpoint)
+// ---------------------------------------------------------------------------
+
+/** Mirrors the backend `DocumentStatusResponse` model exactly. */
+export interface DocumentStatus {
+  document_id: string;
+  filename: string;
+  /** UPLOADED → PARSED → EMBEDDED → COMPLETED (or FAILED). */
+  overall_status: string;
+  /** SUCCESS | FAILED | SKIPPED | null (graph extraction branch). */
+  graph_job_status: string | null;
+  error_message: string | null;
+  page_count: number | null;
+  chunk_count: number | null;
+  uploaded_at: string;
+  updated_at: string;
+}
+
+export async function getDocumentStatus(documentId: string): Promise<DocumentStatus> {
+  return apiFetch<DocumentStatus>(`/status/${encodeURIComponent(documentId)}`);
+}
+
+export async function listDocuments(): Promise<DocumentStatus[]> {
+  return apiFetch<DocumentStatus[]>('/documents');
+}
+
 // ---------------------------------------------------------------------------
 // Knowledge graph (real structured /graph endpoint, backed by Neo4j)
 // ---------------------------------------------------------------------------
@@ -135,7 +175,7 @@ function parseSSEStream(
             case 'error': callbacks.onError(new Error(data.message)); break;
             case 'done': callbacks.onDone(data.answer_id); break;
           }
-        } catch {}
+        } catch { }
         currentEvent = '';
       }
     }

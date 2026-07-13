@@ -50,7 +50,7 @@ export function ReasoningOverlay({ jobId }: ReasoningOverlayProps) {
       onCitation: (cit) => {
         citations.push({ ...cit, page: cit.page ?? 0, title: `Document ${cit.doc_id}`, snippet: '' });
       },
-      onAgentTrigger: () => {},
+      onAgentTrigger: () => { },
       onReasoning: (content) => {
         const step: ReasoningStep = {
           id: `step-${stepIndex++}`,
@@ -141,7 +141,7 @@ export function ReasoningOverlay({ jobId }: ReasoningOverlayProps) {
     return (
       <div className="flex items-center justify-center h-64">
         <motion.div
-          className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent"
+          className="w-8 h-8 rounded-full border-2 border-signal border-t-transparent"
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
         />
@@ -159,17 +159,17 @@ export function ReasoningOverlay({ jobId }: ReasoningOverlayProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <motion.div
-              className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center"
+              className="w-11 h-11 rounded-xl bg-signal-soft border border-line flex items-center justify-center"
               animate={job.status === 'running' ? { rotate: [0, 5, -5, 0] } : {}}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              <Brain className="w-5 h-5 text-amber-400" />
+              <Brain className="w-5 h-5 text-signal" />
             </motion.div>
             <div>
-              <h1 className="text-xl font-bold text-zinc-100">SEEKR Diagnose</h1>
-              <p className="text-sm text-zinc-500">
-                Equipment: <span className="text-blue-400">{job.equipment_tag}</span>
-                {' · '}Job: <span className="text-zinc-400">{job.job_id}</span>
+              <h1 className="text-xl font-bold text-ink">SEEKR Diagnose</h1>
+              <p className="text-sm text-muted">
+                Equipment: <span className="text-signal">{job.equipment_tag}</span>
+                {' · '}Job: <span className="text-muted">{job.job_id}</span>
               </p>
             </div>
           </div>
@@ -205,7 +205,7 @@ export function ReasoningOverlay({ jobId }: ReasoningOverlayProps) {
       <FadeIn delay={0.2}>
         <Card>
           <CardHeader>
-            <h2 className="text-sm font-semibold text-zinc-300">Reasoning Steps</h2>
+            <h2 className="text-sm font-semibold text-ink">Reasoning Steps</h2>
           </CardHeader>
           <CardContent className="p-0">
             <StepTimeline steps={visibleSteps} activeIndex={replayMode ? replayIndex : undefined} />
@@ -218,18 +218,18 @@ export function ReasoningOverlay({ jobId }: ReasoningOverlayProps) {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-zinc-300">Diagnosis Result</h2>
+                <h2 className="text-sm font-semibold text-ink">Diagnosis Result</h2>
                 <Badge variant="default">
                   Confidence: {Math.round(job.result.confidence * 100)}%
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-line">{job.result.diagnosis}</p>
+              <p className="text-sm text-ink leading-relaxed whitespace-pre-line">{job.result.diagnosis}</p>
 
               {job.result.recommended_actions.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                  <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                     Recommended Actions
                   </h3>
                   <ul className="space-y-2">
@@ -239,9 +239,9 @@ export function ReasoningOverlay({ jobId }: ReasoningOverlayProps) {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.4 + i * 0.1 }}
-                        className="flex items-start gap-2 text-sm text-zinc-300"
+                        className="flex items-start gap-2 text-sm text-ink"
                       >
-                        <ArrowRight className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                        <ArrowRight className="w-4 h-4 text-signal mt-0.5 shrink-0" />
                         {action}
                       </motion.li>
                     ))}
@@ -251,7 +251,7 @@ export function ReasoningOverlay({ jobId }: ReasoningOverlayProps) {
 
               {job.result.supporting_evidence.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                  <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                     Supporting Evidence
                   </h3>
                   <div className="flex flex-wrap gap-2">

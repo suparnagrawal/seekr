@@ -23,7 +23,7 @@ export default function DashboardPage() {
             animate={{ width: 420, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="border-l border-zinc-800 overflow-hidden"
+            className="border-l border-line overflow-hidden"
           >
             <NodeSidePanel tag={selectedNode.tag} label={selectedNode.label} />
           </motion.div>

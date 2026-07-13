@@ -26,9 +26,9 @@ export function AgentInvokeBar({ tag }: AgentInvokeBarProps) {
     <motion.div
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="px-5 py-3 border-b border-zinc-800 flex items-center gap-2 overflow-x-auto"
+      className="px-5 py-3 border-b border-line flex items-center gap-2 overflow-x-auto"
     >
-      <span className="text-xs text-zinc-500 shrink-0">Agents:</span>
+      <span className="eyebrow shrink-0 mr-1">Agents</span>
 
       {hasPermission('agents:diagnose') && (
         <Button

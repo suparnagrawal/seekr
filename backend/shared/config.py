@@ -44,15 +44,39 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str | None = None
     
     # RQ Queue Configuration
-    RQ_DOC_PARSE_TIMEOUT: int = 300
-    RQ_EMBED_TIMEOUT: int = 180
+    RQ_DOC_PARSE_TIMEOUT: int = 600
+    RQ_EMBED_TIMEOUT: int = 600
     RQ_GRAPH_TIMEOUT: int = 600
     RQ_RETRY_MAX: int = 3
     RQ_RETRY_INTERVALS: str = "10,30,60"
 
     # Knowledge-graph extraction (P1 -> Neo4j)
     GRAPH_EXTRACTION_ENABLED: bool = True
-    GRAPH_EXTRACTION_MAX_CHUNKS: int = 40
+    # Hard ceiling on chunks considered for extraction. 0 (or negative) means
+    # "no cap" — the whole document is processed via windowed, batched extraction.
+    GRAPH_EXTRACTION_MAX_CHUNKS: int = 0
+    # Chunks per LLM extraction call. The document is split into windows of this
+    # size and each window is extracted independently, then merged/canonicalized.
+    GRAPH_EXTRACTION_WINDOW: int = 12
+    # Max extraction windows run concurrently (bounds memory + gateway pressure).
+    GRAPH_EXTRACTION_CONCURRENCY: int = 3
+
+    # Knowledge-graph traversal (P2 retrieval). Previously hardcoded magic
+    # numbers inside GraphRetriever; surfaced here so they are tunable and
+    # discoverable rather than buried in the algorithm.
+    GRAPH_TRAVERSAL_MAX_NODES: int = 50
+    GRAPH_TRAVERSAL_MAX_DEPTH: int = 5
+    GRAPH_TRAVERSAL_SHALLOW_MAX_NODES: int = 20
+    GRAPH_TRAVERSAL_SHALLOW_MAX_DEPTH: int = 2
+    # Score a node inherits from its parent per hop (0..1). Higher = flatter decay.
+    GRAPH_TRAVERSAL_DECAY: float = 0.85
+    # Nodes scoring below this (past the first hop) are pruned from expansion.
+    GRAPH_TRAVERSAL_RELEVANCE_THRESHOLD: float = 0.3
+    # Multiplier applied to edges whose type is NOT in the query's target set.
+    GRAPH_TRAVERSAL_OFFTARGET_MULTIPLIER: float = 0.5
+    # Max seeds / passages carried forward.
+    GRAPH_TRAVERSAL_MAX_SEEDS: int = 15
+    GRAPH_TRAVERSAL_MAX_PASSAGES: int = 20
     
     # Redis & RQ Configuration
     REDIS_HOST: str = "localhost"
@@ -69,7 +93,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0.3
     LLM_MAX_TOKENS: int = 4096
-    LLM_TIMEOUT: float = 60.0
+    LLM_TIMEOUT: float = 300.0
     LLM_MAX_RETRIES: int = 3
 
     # Embedding Configuration
@@ -91,11 +115,23 @@ class Settings(BaseSettings):
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     
+    S3_ENDPOINT_URL: str | None = None
+    S3_ACCESS_KEY_ID: str | None = None
+    S3_SECRET_ACCESS_KEY: str | None = None
+    S3_REGION: str = "auto"
+    S3_BUCKET_NAME: str = "seekr-artifacts"
+    
     # LLM Configuration
     LLM_SUPPORTS_JSON_MODE: bool = True
     
     # Retrieval Configuration
     RRF_K: int = 60
+    # Lexical (Postgres FTS) pathway. Fully implemented in retrievers/keyword.py;
+    # enabled here so fusion runs as the intended three-pathway system. Falls back
+    # gracefully (empty result) if the `chunks.fts` column is absent.
+    RETRIEVAL_ENABLE_KEYWORD: bool = True
+    # Number of fused chunks handed to the generator.
+    RETRIEVAL_TOP_K: int = 8
 
     model_config = SettingsConfigDict(env_file=str(_ENV_FILE), case_sensitive=True, extra="ignore")
 

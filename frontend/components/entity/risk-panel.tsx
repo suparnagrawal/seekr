@@ -17,9 +17,9 @@ interface RiskPanelProps {
 }
 
 const trendConfig = {
-  improving: { icon: TrendingDown, color: 'text-emerald-400', label: 'Improving' },
-  stable: { icon: Minus, color: 'text-zinc-400', label: 'Stable' },
-  degrading: { icon: TrendingUp, color: 'text-red-400', label: 'Degrading' },
+  improving: { icon: TrendingDown, color: 'text-mint', label: 'Improving' },
+  stable: { icon: Minus, color: 'text-muted', label: 'Stable' },
+  degrading: { icon: TrendingUp, color: 'text-ember', label: 'Degrading' },
 };
 
 function parseRiskFromText(text: string, tag: string): RiskAssessment {
@@ -87,7 +87,7 @@ export function RiskPanel({ tag }: RiskPanelProps) {
     return (
       <div className="flex items-center justify-center h-48">
         <motion.div
-          className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent"
+          className="w-6 h-6 rounded-full border-2 border-signal border-t-transparent"
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
         />
@@ -97,7 +97,7 @@ export function RiskPanel({ tag }: RiskPanelProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-zinc-500">
+      <div className="flex items-center justify-center h-48 text-sm text-muted">
         Failed to load risk assessment: {error}
       </div>
     );
@@ -113,8 +113,8 @@ export function RiskPanel({ tag }: RiskPanelProps) {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-zinc-200">Overall Risk Score</h3>
-                <p className="text-sm text-zinc-500">{risk.equipment_name}</p>
+                <h3 className="text-lg font-semibold text-ink">Overall Risk Score</h3>
+                <p className="text-sm text-muted">{risk.equipment_name}</p>
               </div>
               <div className="flex items-center gap-2">
                 <TrendIcon className={`w-4 h-4 ${trend.color}`} />
@@ -133,7 +133,7 @@ export function RiskPanel({ tag }: RiskPanelProps) {
               >
                 {Math.round(risk.overall_risk * 100)}
               </motion.span>
-              <span className="text-sm text-zinc-500 mb-1">/100</span>
+              <span className="text-sm text-muted mb-1">/100</span>
             </div>
             <Progress value={risk.overall_risk * 100} className="mt-3" />
           </CardContent>
@@ -141,7 +141,7 @@ export function RiskPanel({ tag }: RiskPanelProps) {
       </FadeIn>
 
       <FadeIn delay={0.1}>
-        <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">Risk Factors</h3>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">Risk Factors</h3>
       </FadeIn>
 
       <StaggerChildren className="space-y-2">
@@ -150,15 +150,15 @@ export function RiskPanel({ tag }: RiskPanelProps) {
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-zinc-200">{factor.name}</span>
+                  <span className="text-sm font-medium text-ink">{factor.name}</span>
                   <span className="text-sm font-bold tabular-nums" style={{ color: getRiskColor(factor.score) }}>
                     {Math.round(factor.score * 100)}
                   </span>
                 </div>
-                <p className="text-xs text-zinc-500 mb-2">{factor.description}</p>
+                <p className="text-xs text-muted mb-2">{factor.description}</p>
                 <div className="flex items-center gap-2">
                   <Progress value={factor.score * 100} size="sm" className="flex-1" />
-                  <span className="text-[10px] text-zinc-600">w:{Math.round(factor.weight * 100)}%</span>
+                  <span className="text-[10px] text-faint">w:{Math.round(factor.weight * 100)}%</span>
                 </div>
               </CardContent>
             </Card>

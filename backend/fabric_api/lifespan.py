@@ -1,6 +1,7 @@
 import structlog
 from contextlib import asynccontextmanager
 import time
+import asyncio
 from fastapi import FastAPI
 
 from backend.shared.config import settings
@@ -9,6 +10,7 @@ from backend.shared.database import engine, init_db_pools, close_db_pools
 from backend.shared.neo4j_client import neo4j_driver, close_neo4j_async
 from backend.shared.qdrant_client import qdrant_client, close_qdrant_async
 from backend.shared.redis_client import redis_conn
+from backend.fabric_api.dlq_recovery import dlq_recovery_loop
 
 logger = structlog.get_logger(__name__)
 
@@ -56,9 +58,18 @@ async def lifespan(app: FastAPI):
     await init_db_pools()
     logger.info("Async database pools initialized.")
 
+    # Start DLQ Recovery Daemon
+    dlq_task = asyncio.create_task(dlq_recovery_loop())
+    
     yield # Yield control to the FastAPI application
 
     # Shutdown Sequence
+    logger.info("Application shutting down. Cancelling background tasks...")
+    dlq_task.cancel()
+    try:
+        await dlq_task
+    except asyncio.CancelledError:
+        pass
     logger.info("Application shutting down. Closing infrastructure connections...")
     
     try:

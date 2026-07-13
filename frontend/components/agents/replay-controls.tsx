@@ -28,9 +28,9 @@ export function ReplayControls({ speed, onSpeedChange, onTick, isPlaying, curren
     <motion.div
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex items-center gap-3 bg-zinc-900/90 backdrop-blur-sm border border-zinc-800 rounded-lg px-4 py-2"
+      className="flex items-center gap-3 bg-panel/90 backdrop-blur-sm border border-line rounded-lg px-4 py-2"
     >
-      <span className="text-xs text-zinc-500">Replay</span>
+      <span className="text-xs text-muted">Replay</span>
 
       <div className="flex items-center gap-1">
         {[0.5, 1, 2].map((s) => (
@@ -47,16 +47,16 @@ export function ReplayControls({ speed, onSpeedChange, onTick, isPlaying, curren
       </div>
 
       <div className="flex-1 mx-2">
-        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-base rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-blue-500 rounded-full"
+            className="h-full bg-signal rounded-full"
             animate={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
             transition={{ duration: 0.3 }}
           />
         </div>
       </div>
 
-      <span className="text-xs text-zinc-400 tabular-nums">
+      <span className="text-xs text-muted tabular-nums">
         {currentStep + 1}/{totalSteps}
       </span>
     </motion.div>

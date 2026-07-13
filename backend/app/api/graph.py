@@ -80,7 +80,28 @@ async def get_graph(
 
     try:
         async with neo4j_driver.session() as session:
-            node_result = await session.run(nodes_query, tag=tag)
+            # Check if the requested tag exists
+            check_result = await session.run("MATCH (n {tag: $tag}) RETURN count(n) AS cnt", tag=tag)
+            record = await check_result.single()
+            
+            actual_tag = tag
+            if record and record["cnt"] == 0:
+                # Pick an arbitrary node with a tag (preferably one with relationships)
+                rand_result = await session.run("MATCH (n)-[]-() WHERE n.tag IS NOT NULL RETURN n.tag AS tag LIMIT 1")
+                rand_record = await rand_result.single()
+                if rand_record:
+                    actual_tag = rand_record["tag"]
+                else:
+                    # Fallback to any node if no connected nodes exist
+                    rand_result2 = await session.run("MATCH (n) WHERE n.tag IS NOT NULL RETURN n.tag AS tag LIMIT 1")
+                    rand_record2 = await rand_result2.single()
+                    if rand_record2:
+                        actual_tag = rand_record2["tag"]
+                    else:
+                        # Graph is completely empty
+                        return GraphResponse(center=tag, nodes=[], edges=[])
+
+            node_result = await session.run(nodes_query, tag=actual_tag)
             node_records = await node_result.data()
 
             nodes: List[GraphNode] = []
@@ -129,7 +150,7 @@ async def get_graph(
                         )
                     )
 
-        return GraphResponse(center=tag, nodes=nodes, edges=edges)
+        return GraphResponse(center=actual_tag, nodes=nodes, edges=edges)
 
     except Exception as exc:
         log_error(logger, str(exc), session_id=f"graph:{tag}", exc_info=True)

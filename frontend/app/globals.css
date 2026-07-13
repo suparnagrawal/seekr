@@ -1,68 +1,274 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ *
+ * SEEKR — "Foundry" design system
+ * A warm industrial / engineering-drafting aesthetic.
+ * Dominant signal-amber, ember + mint accents, blueprint atmosphere.
+ * Light theme = warm drafting paper; dark theme = warm graphite.
+ * ------------------------------------------------------------------ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---- Light (warm drafting paper) — default ---------------------- */
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
+  --base:        #eee7d7;
+  --base-deep:   #e6ddc9;
+  --surface:     #f7f2e6;
+  --panel:       #fbf7ee;
+  --elevated:    #ffffff;
+  --line:        #d8ccb2;
+  --line-strong: #c3b492;
+  --ink:         #24201a;
+  --muted:       #6c6250;
+  --faint:       #988d76;
+
+  --signal:      #b5730c;   /* amber, deepened for contrast on paper */
+  --signal-bright:#d98a12;
+  --signal-soft: rgba(181, 115, 12, 0.12);
+  --ember:       #c0361b;   /* hot orange-red */
+  --ember-soft:  rgba(192, 54, 27, 0.12);
+  --mint:        #0e8f6f;   /* cool live/healthy */
+  --mint-soft:   rgba(14, 143, 111, 0.12);
+
+  --grid:        rgba(90, 74, 40, 0.06);
+  --glow:        rgba(181, 115, 12, 0.10);
+  --shadow:      rgba(60, 48, 22, 0.14);
+
+  color-scheme: light;
+}
+
+/* ---- Dark (warm graphite control room) ------------------------- */
+.dark {
+  --base:        #0d0b08;
+  --base-deep:   #080705;
+  --surface:     #16130e;
+  --panel:       #1b1712;
+  --elevated:    #221d16;
+  --line:        #2e281f;
+  --line-strong: #423a2d;
+  --ink:         #f3ecdd;
+  --muted:       #a89a82;
+  --faint:       #6f6553;
+
+  --signal:      #f5a524;   /* amber signal, glowing on dark */
+  --signal-bright:#ffbe4d;
+  --signal-soft: rgba(245, 165, 36, 0.14);
+  --ember:       #ff5c38;
+  --ember-soft:  rgba(255, 92, 56, 0.14);
+  --mint:        #3fd6b0;
+  --mint-soft:   rgba(63, 214, 176, 0.14);
+
+  --grid:        rgba(245, 165, 36, 0.05);
+  --glow:        rgba(245, 165, 36, 0.10);
+  --shadow:      rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-base: var(--base);
+  --color-base-deep: var(--base-deep);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-elevated: var(--elevated);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-signal: var(--signal);
+  --color-signal-bright: var(--signal-bright);
+  --color-ember: var(--ember);
+  --color-mint: var(--mint);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #27272a #09090b;
+  scrollbar-color: var(--line-strong) transparent;
 }
-
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-*::-webkit-scrollbar-track {
-  background: #09090b;
-}
-
+*::-webkit-scrollbar { width: 7px; height: 7px; }
+*::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 3px;
+  background: var(--line-strong);
+  border-radius: 4px;
 }
+*::-webkit-scrollbar-thumb:hover { background: var(--signal); }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
-}
+html { -webkit-font-smoothing: antialiased; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: var(--base);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv05", "ss01";
+  /* Layered atmosphere: warm top glow + faint blueprint grid + vignette */
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, var(--glow) 0%, transparent 55%),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 100% 100%, 44px 44px, 44px 44px;
+  background-attachment: fixed;
 }
 
 ::selection {
-  background: rgba(59, 130, 246, 0.3);
-  color: #fff;
+  background: var(--signal);
+  color: var(--base);
 }
 
+/* ------------------------------------------------------------------ *
+ * Typography helpers
+ * ------------------------------------------------------------------ */
+.font-display { font-family: var(--font-display); font-optical-sizing: auto; }
+.font-mono { font-family: var(--font-mono); }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.66rem;
+  color: var(--faint);
+}
+
+.data-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------------ *
+ * Surfaces — engineering panels with corner ticks
+ * ------------------------------------------------------------------ */
+.panel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, transparent), var(--surface));
+  border: 1px solid var(--line);
+  position: relative;
+}
+.panel-glow { box-shadow: 0 0 0 1px var(--line), 0 18px 40px -24px var(--shadow); }
+
+/* Engineering-drawing corner ticks */
+.ticked::before,
+.ticked::after {
+  content: "";
+  position: absolute;
+  width: 9px; height: 9px;
+  border-color: var(--line-strong);
+  pointer-events: none;
+}
+.ticked::before { top: 6px; left: 6px; border-top: 1.5px solid; border-left: 1.5px solid; }
+.ticked::after { bottom: 6px; right: 6px; border-bottom: 1.5px solid; border-right: 1.5px solid; }
+
+.hairline { border-color: var(--line); }
+
+/* HUD — dark glass chrome that sits over the always-dark graph screen */
+.hud {
+  background: rgba(20, 17, 11, 0.82);
+  border: 1px solid rgba(245, 165, 36, 0.16);
+  backdrop-filter: blur(8px);
+  color: #e9e1d0;
+}
+.hud-text { color: #a89a82; }
+
+/* ------------------------------------------------------------------ *
+ * Motion
+ * ------------------------------------------------------------------ */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
-
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.05) 50%, transparent 75%);
+  background: linear-gradient(90deg, transparent 20%, var(--signal-soft) 50%, transparent 80%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
 
-@keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
 }
 
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradient-shift 6s ease infinite;
+@keyframes signal-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--signal-soft); }
+  50% { opacity: 0.65; box-shadow: 0 0 14px 3px var(--signal-soft); }
+}
+.animate-signal { animation: signal-pulse 2.4s ease-in-out infinite; }
+
+@keyframes flicker-in {
+  0% { opacity: 0; }
+  40% { opacity: 0.4; }
+  45% { opacity: 0.1; }
+  60% { opacity: 0.7; }
+  70% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+.animate-flicker { animation: flicker-in 0.9s steps(12, end) both; }
+
+@keyframes sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+@keyframes grid-drift {
+  0% { background-position: 0 0; }
+  100% { background-position: 44px 44px; }
+}
+
+/* Vertical scan beam for the graph instrument screen (transform-only = GPU cheap) */
+@keyframes graph-scan-move {
+  0% { transform: translateY(-120%); }
+  100% { transform: translateY(1200%); }
+}
+.graph-scan {
+  top: 0;
+  background: linear-gradient(to bottom, transparent, rgba(245, 165, 36, 0.10) 45%, rgba(245, 165, 36, 0.16) 50%, transparent);
+  will-change: transform;
+  animation: graph-scan-move 6s linear infinite;
+}
+
+/* Three-dot thinking indicator */
+@keyframes think-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+.think-dot { animation: think-bounce 1.2s ease-in-out infinite; }
+
+/* Blueprint backdrop used on auth / hero surfaces */
+.blueprint {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 26px 26px, 26px 26px;
+}
+.blueprint-drift { animation: grid-drift 6s linear infinite; }
+
+/* CRT scanline overlay */
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 3px
+  );
+  mix-blend-mode: multiply;
+}
+.dark .scanlines::after {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 3px
+  );
+  mix-blend-mode: screen;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

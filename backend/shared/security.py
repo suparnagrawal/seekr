@@ -21,13 +21,19 @@ def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security_sche
     Production deployments must set the JWKS_URL and JWT_AUDIENCE environment variables.
     """
     token = credentials.credentials
-    
+
+    # Configuration errors must surface as server errors (RuntimeError -> 500),
+    # not as client-facing AuthenticationError (401). Both the audience and the
+    # JWKS client are validated *before* the token-verification try/except so a
+    # misconfigured deployment is never mistaken for a bad token. (get_jwks_client
+    # itself raises RuntimeError when JWKS_URL is unset.)
     audience = os.getenv("JWT_AUDIENCE")
     if not audience:
         raise RuntimeError("JWT_AUDIENCE must be configured when ENABLE_AUTH is true.")
-        
+
+    jwks_client = get_jwks_client()
+
     try:
-        jwks_client = get_jwks_client()
         signing_key = jwks_client.get_signing_key_from_jwt(token)
         payload = jwt.decode(
             token,

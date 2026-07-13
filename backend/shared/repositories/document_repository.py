@@ -57,6 +57,9 @@ class DocumentRepository:
         if isinstance(document_id, str):
             document_id = uuid.UUID(document_id)
         return self.db.query(Document).filter(Document.id == document_id).with_for_update().first()
+        
+    def list_all(self, limit: int = 100) -> list[Document]:
+        return self.db.query(Document).order_by(Document.uploaded_at.desc()).limit(limit).all()
 
     def update_status(self, document_id: str | uuid.UUID, status: str) -> None:
         """Updates just the status of a document."""

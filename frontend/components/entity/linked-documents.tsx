@@ -74,7 +74,7 @@ export function LinkedDocuments({ tag }: { tag: string }) {
     return (
       <div className="flex items-center justify-center h-48">
         <motion.div
-          className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent"
+          className="w-6 h-6 rounded-full border-2 border-signal border-t-transparent"
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
         />
@@ -84,7 +84,7 @@ export function LinkedDocuments({ tag }: { tag: string }) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-zinc-500">
+      <div className="flex items-center justify-center h-48 text-sm text-muted">
         Failed to load documents: {error}
       </div>
     );
@@ -92,7 +92,7 @@ export function LinkedDocuments({ tag }: { tag: string }) {
 
   if (docs.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-zinc-500">
+      <div className="flex items-center justify-center h-48 text-sm text-muted">
         No linked documents found for {tag}
       </div>
     );
@@ -108,22 +108,22 @@ export function LinkedDocuments({ tag }: { tag: string }) {
             <StaggerItem key={doc.id}>
               <motion.div
                 whileHover={{ x: 2 }}
-                className="flex items-start gap-3 p-3 rounded-lg border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all cursor-pointer group"
+                className="flex items-start gap-3 p-3 rounded-lg border border-line hover:border-line hover:bg-base/40 transition-all cursor-pointer group"
               >
-                <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0 group-hover:bg-violet-500/20 transition-colors">
-                  <Icon className="w-4 h-4 text-violet-400" />
+                <div className="w-9 h-9 rounded-lg bg-signal-soft flex items-center justify-center shrink-0 group-hover:bg-signal-soft transition-colors">
+                  <Icon className="w-4 h-4 text-signal" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-200 truncate group-hover:text-zinc-100">{doc.title}</p>
+                  <p className="text-sm font-medium text-ink truncate group-hover:text-ink">{doc.title}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="outline">{doc.type}</Badge>
-                    {doc.pages > 0 && <span className="text-xs text-zinc-500">{doc.pages} pages</span>}
-                    <span className="text-xs text-zinc-600">{formatDate(doc.last_updated)}</span>
+                    {doc.pages > 0 && <span className="text-xs text-muted">{doc.pages} pages</span>}
+                    <span className="text-xs text-faint">{formatDate(doc.last_updated)}</span>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-xs text-zinc-500">Relevance</div>
-                  <div className="text-sm font-medium text-blue-400">{Math.round(doc.relevance * 100)}%</div>
+                  <div className="text-xs text-muted">Relevance</div>
+                  <div className="text-sm font-medium text-signal">{Math.round(doc.relevance * 100)}%</div>
                 </div>
               </motion.div>
             </StaggerItem>

@@ -23,7 +23,7 @@ async def qdrant_search(query_embedding: List[float], top_k: int = 10) -> List[D
 
 async def neo4j_neighbors(tag: str) -> List[Tuple[str, str, float]]:
     query = """
-    MATCH (start {tag: $tag})-[r]-(neighbor)
+    MATCH (start:Entity {tag: $tag})-[r]-(neighbor:Entity)
     RETURN neighbor.tag AS tag, type(r) AS rel_type, COALESCE(r.confidence, 1.0) AS confidence
     LIMIT 100
     """
@@ -32,6 +32,38 @@ async def neo4j_neighbors(tag: str) -> List[Tuple[str, str, float]]:
         result = await session.run(query, tag=tag)
         records = await result.data()
         return [(rec["tag"], rec["rel_type"], rec["confidence"]) for rec in records]
+
+
+async def neo4j_bulk_neighbors(
+    tags: List[str], per_node_limit: int = 100
+) -> Dict[str, List[Tuple[str, str, float]]]:
+    """Fetch neighbors for many entities in a single round-trip.
+
+    Replaces the per-node ``neo4j_neighbors`` calls the graph traversal used to
+    issue inside its BFS loop (an N+1 pattern: one Neo4j round-trip per visited
+    node). Returns a mapping of source tag -> list of (neighbor_tag, rel_type,
+    confidence), scoped to ``:Entity`` on both ends.
+    """
+    if not tags:
+        return {}
+    query = """
+    UNWIND $tags AS t
+    MATCH (start:Entity {tag: t})-[r]-(neighbor:Entity)
+    WITH t, neighbor, r
+    LIMIT $overall_limit
+    RETURN t AS source, neighbor.tag AS tag, type(r) AS rel_type,
+           COALESCE(r.confidence, 1.0) AS confidence
+    """
+    overall_limit = max(len(tags) * per_node_limit, per_node_limit)
+    out: Dict[str, List[Tuple[str, str, float]]] = {t: [] for t in tags}
+    driver = get_neo4j_async()
+    async with driver.session() as session:
+        result = await session.run(query, tags=tags, overall_limit=overall_limit)
+        records = await result.data()
+        for rec in records:
+            src = rec["source"]
+            out.setdefault(src, []).append((rec["tag"], rec["rel_type"], rec["confidence"]))
+    return out
 
 async def pg_facts(doc_ids: List[str]) -> List[Dict[str, Any]]:
     if not doc_ids:

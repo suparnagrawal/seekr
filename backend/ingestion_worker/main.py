@@ -1,7 +1,7 @@
 import signal
 import sys
 import structlog
-from rq import Worker
+from rq import SimpleWorker
 
 from backend.shared.config import settings
 from backend.shared.logging import setup_logging
@@ -50,9 +50,12 @@ def main():
         redis_conn.ping()
         logger.info("Connected to Redis successfully.")
         
+        # Removed dummy HTTP server: In a unified Render Web Service, FastAPI 
+        # already binds to $PORT. Binding here again causes Address Already In Use.
+
         # Initialize and run the RQ Worker
         # We listen only to the designated ingestion queue
-        worker = Worker(
+        worker = SimpleWorker(
             [INGESTION_QUEUE_NAME],
             connection=redis_conn,
             log_job_description=False # Handled by structlog

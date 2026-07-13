@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Bot, User, ExternalLink } from 'lucide-react';
+import { Cpu, User, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import type { CopilotMessage } from '@/lib/types';
 import { CitationChip } from './citation-chip';
@@ -13,7 +13,7 @@ interface MessageBubbleProps {
   entityTag: string;
 }
 
-export function MessageBubble({ message, entityTag }: MessageBubbleProps) {
+export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
 
   return (
@@ -24,33 +24,43 @@ export function MessageBubble({ message, entityTag }: MessageBubbleProps) {
       className={cn('flex gap-3', isUser && 'flex-row-reverse')}
     >
       <div className={cn(
-        'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+        'w-8 h-8 rounded-md flex items-center justify-center shrink-0 border',
         isUser
-          ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500'
-          : 'bg-gradient-to-br from-blue-500 to-cyan-400',
+          ? 'bg-signal-soft border-signal/30 text-signal'
+          : 'bg-mint-soft border-mint/30 text-mint',
       )}>
-        {isUser ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white" />}
+        {isUser ? <User className="w-4 h-4" /> : <Cpu className="w-4 h-4" />}
       </div>
 
-      <div className={cn('max-w-[80%] space-y-2', isUser && 'text-right')}>
+      <div className={cn('max-w-[82%] space-y-2', isUser && 'text-right')}>
         <div className={cn(
-          'rounded-2xl px-4 py-3 text-sm leading-relaxed',
+          'inline-block text-left rounded-lg px-4 py-3 text-sm leading-relaxed border',
           isUser
-            ? 'bg-blue-600 text-white rounded-tr-sm'
-            : 'bg-zinc-800/80 text-zinc-200 rounded-tl-sm border border-zinc-700/50',
+            ? 'bg-signal text-base border-transparent rounded-tr-sm font-medium'
+            : 'bg-panel text-ink border-line rounded-tl-sm',
         )}>
-          <p className="whitespace-pre-wrap">{message.content}</p>
-          {message.streaming && (
-            <motion.span
-              className="inline-block w-2 h-4 bg-blue-400 ml-0.5"
-              animate={{ opacity: [1, 0] }}
-              transition={{ duration: 0.8, repeat: Infinity }}
-            />
+          {message.streaming && !message.content ? (
+            <span className="inline-flex items-center gap-1 py-0.5">
+              <span className="think-dot w-1.5 h-1.5 rounded-full bg-mint" style={{ animationDelay: '0ms' }} />
+              <span className="think-dot w-1.5 h-1.5 rounded-full bg-mint" style={{ animationDelay: '160ms' }} />
+              <span className="think-dot w-1.5 h-1.5 rounded-full bg-mint" style={{ animationDelay: '320ms' }} />
+            </span>
+          ) : (
+            <>
+              <p className="whitespace-pre-wrap">{message.content}</p>
+              {message.streaming && (
+                <motion.span
+                  className="inline-block w-[3px] h-4 bg-mint ml-0.5 align-middle"
+                  animate={{ opacity: [1, 0] }}
+                  transition={{ duration: 0.75, repeat: Infinity }}
+                />
+              )}
+            </>
           )}
         </div>
 
         {message.citations && message.citations.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className={cn('flex flex-wrap gap-1.5', isUser && 'justify-end')}>
             {message.citations.map((cit, i) => (
               <CitationChip key={`${cit.doc_id}-${i}`} citation={cit} />
             ))}
@@ -58,14 +68,11 @@ export function MessageBubble({ message, entityTag }: MessageBubbleProps) {
         )}
 
         {message.agent_trigger && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
             <Link href={`/agents/diagnose/${message.agent_trigger.job_id}`}>
-              <Badge variant="warning" className="cursor-pointer hover:bg-amber-500/30 transition-colors">
-                <ExternalLink className="w-3 h-3" />
-                Agent triggered: {message.agent_trigger.worker}
+              <Badge variant="warning" className="cursor-pointer hover:bg-signal/20 transition-colors">
+                <ArrowUpRight className="w-3 h-3" />
+                escalated · {message.agent_trigger.worker}
               </Badge>
             </Link>
           </motion.div>
