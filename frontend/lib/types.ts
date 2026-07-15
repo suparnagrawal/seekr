@@ -55,13 +55,18 @@ export interface CopilotMessage {
   citations?: Citation[];
   agent_trigger?: AgentTrigger;
   reasoning_steps?: string[];
+  tool_calls?: { name: string; args: Record<string, unknown>; result?: unknown }[];
   timestamp: number;
   streaming?: boolean;
 }
 
 export interface Citation {
   doc_id: string;
+  filename: string;
   passage_id: string;
+  chunk_index: number;
+  page_numbers: number[];
+  headings: string[];
   page: number;
   title?: string;
   snippet?: string;
@@ -97,7 +102,11 @@ export interface TokenEvent {
 
 export interface CitationEvent {
   doc_id: string;
+  filename: string;
   passage_id: string;
+  chunk_index: number;
+  page_numbers: number[];
+  headings: string[];
   page: number;
 }
 

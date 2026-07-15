@@ -35,10 +35,16 @@ class UploadService:
         self.queue = queue
         self.cleanup = cleanup
 
-    def process_upload(self, file: UploadFile) -> tuple[uuid.UUID, str, str]:
+    def process_upload(self, file: UploadFile, ml_gateway_url: str | None = None) -> tuple[uuid.UUID, str, str]:
         """
-        Processes an uploaded file synchronously.
-        Returns a tuple of (document_id, job_id, status).
+        Handles the end-to-end document upload flow:
+        1. Persists file to storage
+        2. Computes hashes
+        3. Creates Postgres record
+        4. Enqueues background ingestion job
+        
+        Returns:
+            Tuple of (document_id, job_id, status)
         """
         # 1. Validate MIME type
         if file.content_type not in ALLOWED_MIME_TYPES:
@@ -118,7 +124,8 @@ class UploadService:
                 "backend.ingestion_worker.jobs.process_document_job",
                 kwargs={
                     "document_id": str(document_id),
-                    "stored_path": stored_path
+                    "stored_path": stored_path,
+                    "ml_gateway_url": ml_gateway_url
                 },
                 job_id=f"ingest_{document_id}",
                 job_timeout=settings.RQ_DOC_PARSE_TIMEOUT,
@@ -152,7 +159,7 @@ class UploadService:
             self.cleanup.cleanup_failed_upload(document_id, error_message=str(e))
             raise InfrastructureError(message="Failed to enqueue background job.", service="Redis")
 
-    def retry_upload(self, document_id: str) -> tuple[uuid.UUID, str, str]:
+    def retry_upload(self, document_id: str, ml_gateway_url: str | None = None) -> tuple[uuid.UUID, str, str]:
         """
         Retries a failed upload by resetting its state and re-enqueueing the processing job.
         """
@@ -167,15 +174,17 @@ class UploadService:
         if doc.status == DocumentStatus.COMPLETED.value:
             raise ValidationFailedError("Cannot retry a successfully completed document.")
             
-        # Reconstruct the S3 URI
-        stored_path = f"s3://{self.storage.bucket}/{self.storage.get_object_key(document_id, doc.stored_filename)}"
+        # Reconstruct the URI properly depending on local vs S3 storage
+        stored_path = self.storage.get_artifact_uri(document_id, doc.stored_filename)
         
         try:
             job = self.queue.enqueue(
-                "backend.ingestion_worker.jobs.process_document_job",
+                "backend.fabric_api.dlq_recovery.enqueue_with_retry",
+                args=("backend.ingestion_worker.jobs.process_document_job",),
                 kwargs={
                     "document_id": str(document_id),
-                    "stored_path": stored_path
+                    "stored_path": stored_path,
+                    "ml_gateway_url": ml_gateway_url
                 },
                 job_id=f"ingest_{document_id}",
                 job_timeout=settings.RQ_DOC_PARSE_TIMEOUT,

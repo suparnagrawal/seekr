@@ -65,7 +65,7 @@ export function CopilotChat({ entityTag = null }: CopilotChatProps) {
         );
       },
       onCitation: (cit) => {
-        citations.push({ ...cit, page: cit.page ?? 0, title: `Document ${cit.doc_id}`, snippet: '' });
+        citations.push({ ...cit, page: cit.page ?? 0, title: cit.filename, snippet: '' });
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, citations: [...citations] } : m,
@@ -87,8 +87,26 @@ export function CopilotChat({ entityTag = null }: CopilotChatProps) {
           ),
         );
       },
-      onToolCall: () => { },
-      onToolResult: () => { },
+      onToolCall: (toolName, toolArgs) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, tool_calls: [...(m.tool_calls || []), { name: toolName, args: toolArgs }] } : m,
+          ),
+        );
+      },
+      onToolResult: (toolName, result) => {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== assistantId) return m;
+            const updatedTools = [...(m.tool_calls || [])];
+            const lastCall = updatedTools.reverse().find(t => t.name === toolName);
+            if (lastCall) {
+              lastCall.result = result;
+            }
+            return { ...m, tool_calls: updatedTools.reverse() };
+          }),
+        );
+      },
       onDone: () => {
         setMessages((prev) =>
           prev.map((m) =>

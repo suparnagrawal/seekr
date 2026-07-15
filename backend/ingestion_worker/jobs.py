@@ -12,10 +12,11 @@ from backend.shared.exceptions import IngestionPipelineError
 
 logger = structlog.get_logger(__name__)
 
-def process_document_job(document_id: str, stored_path: str) -> dict[str, Any]:
+def process_document_job(document_id: str, stored_path: str, ml_gateway_url: str | None = None) -> dict[str, Any]:
     """
-    Entrypoint for RQ worker.
-    Executes the Docling parsing pipeline, runs layout-aware chunking, and persists all artifacts.
+    First stage of the ingestion pipeline.
+    Parses a document (PDF, DOCX) into Markdown and chunks it.
+    Then enqueues downstream Embedding and Graph Extraction jobs.
     """
     logger.info("Starting document ingestion job", document_id=document_id, stored_path=stored_path)
     
@@ -36,6 +37,8 @@ def process_document_job(document_id: str, stored_path: str) -> dict[str, Any]:
         
         try:
             # 2. Execute parsing
+            from backend.shared.services.parsing_service import ParsingService
+            parsing_service = ParsingService(ml_gateway_url=ml_gateway_url)
             parsed_doc = parsing_service.parse_document(stored_path)
             
             # 3. Save Parsing Artifacts to Disk
@@ -65,8 +68,8 @@ def process_document_job(document_id: str, stored_path: str) -> dict[str, Any]:
             
             # 7. Hand off to Orchestrator — fan out embedding + graph extraction
             from backend.ingestion_worker.orchestrator import pipeline_orchestrator
-            pipeline_orchestrator.enqueue_embedding(document_id)
-            pipeline_orchestrator.enqueue_graph(document_id)
+            pipeline_orchestrator.enqueue_embedding(document_id, ml_gateway_url=ml_gateway_url)
+            pipeline_orchestrator.enqueue_graph(document_id, ml_gateway_url=ml_gateway_url)
             
             logger.info("Document ingestion pipeline finished successfully, enqueued parallel downstream jobs", document_id=document_id, page_count=parsed_doc.page_count, chunk_count=len(chunks))
             return {

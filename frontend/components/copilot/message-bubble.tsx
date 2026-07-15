@@ -59,13 +59,35 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           )}
         </div>
 
-        {message.citations && message.citations.length > 0 && (
-          <div className={cn('flex flex-wrap gap-1.5', isUser && 'justify-end')}>
-            {message.citations.map((cit, i) => (
-              <CitationChip key={`${cit.doc_id}-${i}`} citation={cit} />
-            ))}
-          </div>
-        )}
+        {message.citations && message.citations.length > 0 && (() => {
+          const groupedMap = new Map<string, any>();
+          
+          message.citations.forEach(cit => {
+            const key = (cit.doc_id && cit.doc_id !== 'unknown') ? cit.doc_id : cit.filename;
+            if (!groupedMap.has(key)) {
+              groupedMap.set(key, { 
+                ...cit, 
+                page_numbers: [...(cit.page_numbers || [])],
+                chunk_index: undefined // Hide specific chunk when aggregating at document level
+              });
+            } else {
+              const existing = groupedMap.get(key);
+              if (cit.page_numbers) {
+                existing.page_numbers = Array.from(new Set([...existing.page_numbers, ...cit.page_numbers])).sort((a, b) => a - b);
+              }
+            }
+          });
+          
+          const uniqueCitations = Array.from(groupedMap.values());
+
+          return (
+            <div className={cn('flex flex-wrap gap-1.5', isUser && 'justify-end')}>
+              {uniqueCitations.map((cit, i) => (
+                <CitationChip key={`${cit.doc_id || cit.filename}-${i}`} citation={cit} />
+              ))}
+            </div>
+          );
+        })()}
 
         {message.agent_trigger && (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
@@ -76,6 +98,31 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               </Badge>
             </Link>
           </motion.div>
+        )}
+
+        {message.reasoning_steps && message.reasoning_steps.length > 0 && (
+          <div className="space-y-1 mt-2">
+            {message.reasoning_steps.map((step, i) => (
+              <motion.div key={i} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-xs text-muted flex items-start gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-mint/50 mt-1 shrink-0" />
+                <span className="leading-tight">{step}</span>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {message.tool_calls && message.tool_calls.length > 0 && (
+          <div className="space-y-1 mt-2">
+            {message.tool_calls.map((call, i) => (
+              <motion.div key={i} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-xs font-mono text-faint flex items-start gap-1.5">
+                <span className="text-signal/70">▶</span>
+                <span className="leading-tight break-all">
+                  {call.name}({JSON.stringify(call.args)})
+                  {call.result ? ` → ${typeof call.result === 'object' ? '{...}' : call.result}` : '...'}
+                </span>
+              </motion.div>
+            ))}
+          </div>
         )}
       </div>
     </motion.div>

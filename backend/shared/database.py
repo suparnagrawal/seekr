@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 # --- Sync Postgres (for RQ) ---
 try:
     engine = create_engine(
-        settings.database_url.replace("postgresql://", "postgresql+psycopg://", 1),
+        settings.database_url,
         poolclass=NullPool,
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

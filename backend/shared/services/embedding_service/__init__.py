@@ -7,18 +7,20 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-@lru_cache(maxsize=1)
-def get_embedding_service() -> EmbeddingProvider:
+# Remove lru_cache since we need dynamic instantiation based on endpoint_override
+def get_embedding_service(endpoint_override: str | None = None) -> EmbeddingProvider:
     """
     Dependency provider for the embedding service.
     Returns OpenAIEmbeddingProvider if a remote API endpoint is configured,
     otherwise falls back to the local FastEmbed provider.
     """
+    target_endpoint = endpoint_override or settings.EMBEDDING_MODEL_ENDPOINT
+    
     # 1. Custom Endpoint (Ngrok, vLLM, DeepInfra)
-    if settings.EMBEDDING_MODEL_ENDPOINT and settings.EMBEDDING_MODEL_ENDPOINT != "http://localhost:11434/v1":
-        logger.info("Using remote API for embeddings", endpoint=settings.EMBEDDING_MODEL_ENDPOINT)
+    if target_endpoint and target_endpoint != "http://localhost:11434/v1":
+        logger.info("Using remote API for embeddings", endpoint=target_endpoint)
         return OpenAIEmbeddingProvider(
-            endpoint=settings.EMBEDDING_MODEL_ENDPOINT,
+            endpoint=target_endpoint,
             model_name=settings.EMBEDDING_MODEL
         )
         

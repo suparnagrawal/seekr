@@ -9,8 +9,12 @@ class DenseRetriever(BaseRetriever):
         return "dense"
         
     async def _retrieve_impl(self, query: SearchQuery, context: TraversalContext) -> List[Chunk]:
-        # query_embedding is now part of the TraversalContext built by ContextAssembler
-        results = await qdrant_search(context.query_embedding, top_k=20)
+        # Pure semantic search — no text-match filters. Entity relevance is
+        # handled by the graph pathway and the metadata reranker.
+        results = await qdrant_search(
+            context.query_embedding, 
+            top_k=20,
+        )
         chunks = []
         for r in results:
             chunks.append(Chunk(

@@ -55,9 +55,16 @@ class SyntheticPassage(Chunk):
 @dataclass
 class Citation:
     doc_id: str
+    filename: str
     passage_id: str
-    page: Optional[int] = None
+    chunk_index: int
+    page_numbers: List[int] = field(default_factory=list)
+    headings: List[str] = field(default_factory=list)
     text_snippet: Optional[str] = None
+
+    @property
+    def page(self) -> Optional[int]:
+        return self.page_numbers[0] if self.page_numbers else None
 
 @dataclass
 class GraphContext:

@@ -13,16 +13,26 @@ import { cn } from '@/lib/utils';
 const STAGES = ['UPLOADED', 'PARSED', 'EMBEDDED', 'GRAPH_BUILT', 'COMPLETED'] as const;
 const STAGE_LABELS: Record<string, string> = {
   UPLOADED: 'Uploaded',
+  QUEUED: 'Queued',
+  PROCESSING: 'Parsing',
   PARSED: 'Parsed',
+  EMBEDDING: 'Embedding',
+  INDEXING: 'Indexing',
   EMBEDDED: 'Embedded',
+  GRAPH_BUILDING: 'Extracting Graph',
   GRAPH_BUILT: 'Graph Built',
   COMPLETED: 'Indexed',
   FAILED: 'Failed',
 };
 
 function stageIndex(status: string): number {
-  const i = STAGES.indexOf(status.toUpperCase() as (typeof STAGES)[number]);
-  return i === -1 ? 0 : i;
+  const s = status.toUpperCase();
+  if (['UPLOADED', 'QUEUED'].includes(s)) return 0;
+  if (['PROCESSING'].includes(s)) return 1;
+  if (['PARSED', 'EMBEDDING', 'INDEXING'].includes(s)) return 2;
+  if (['EMBEDDED', 'GRAPH_BUILDING'].includes(s)) return 3;
+  if (['GRAPH_BUILT', 'COMPLETED'].includes(s)) return 4;
+  return 0;
 }
 
 interface UploadedFile {
@@ -41,8 +51,21 @@ interface UploadedFile {
 export default function DocumentsPage() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [activeMlGateway, setActiveMlGateway] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { hasPermission } = useAuth();
+
+  useEffect(() => {
+    const savedGateway = localStorage.getItem('seekr_ml_gateway');
+    if (savedGateway) {
+      setActiveMlGateway(savedGateway);
+    }
+  }, []);
+
+  const handleGatewayChange = (val: string) => {
+    setActiveMlGateway(val);
+    localStorage.setItem('seekr_ml_gateway', val);
+  };
 
   const mounted = useRef(true);
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -124,7 +147,7 @@ export default function DocumentsPage() {
     setFiles((prev) => [...prev, { id, name: file.name, size: file.size, status: 'uploading' }]);
 
     try {
-      const result = await uploadDocument(file);
+      const result = await uploadDocument(file, activeMlGateway || undefined);
       patch(id, { status: 'processing', documentId: result.document_id, stage: result.status || 'UPLOADED' });
       pollStatus(id, result.document_id);
     } catch (err) {
@@ -140,7 +163,7 @@ export default function DocumentsPage() {
   const handleRetry = async (id: string, documentId: string) => {
     patch(id, { status: 'processing', error: undefined, stage: 'QUEUED' });
     try {
-      await retryDocument(documentId);
+      await retryDocument(documentId, activeMlGateway || undefined);
       pollStatus(id, documentId);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Retry failed';
@@ -176,6 +199,18 @@ export default function DocumentsPage() {
 
         {hasPermission('documents:upload') && (
           <FadeIn delay={0.1}>
+            <div className="mb-4 bg-base/50 border border-line rounded-md p-4">
+              <label className="block text-sm font-medium text-ink mb-1">Custom ML Gateway URL (Optional)</label>
+              <p className="text-xs text-muted mb-3">Provide a remote gateway url for offloading parsing and embedding tasks. For example, a Colab/Ngrok endpoint (<a href="https://colab.research.google.com/drive/1yeAxOD0O-DGugkl9oqxUaJORqQf_Ke_w?usp=sharing" target="_blank" rel="noreferrer" className="text-signal hover:underline">see example notebook</a>—clone it and add your <code>NGROK_AUTHTOKEN</code> as a secret): <code className="text-signal bg-signal/10 px-1 py-0.5 rounded">https://my-tunnel.ngrok-free.app</code>.</p>
+              <input
+                type="url"
+                placeholder="https://..."
+                value={activeMlGateway}
+                onChange={(e) => handleGatewayChange(e.target.value)}
+                className="w-full sm:w-2/3 md:w-1/2 bg-panel border border-line rounded-md px-3 py-2 text-sm text-ink focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal"
+              />
+            </div>
+
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}

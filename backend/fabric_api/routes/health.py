@@ -7,6 +7,7 @@ from qdrant_client import QdrantClient
 from redis import Redis
 
 import structlog
+import httpx
 
 from backend.shared.database import get_db
 from backend.shared.neo4j_client import get_neo4j
@@ -16,6 +17,8 @@ from backend.shared.config import settings
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["Health"])
+
+from backend.shared.http_clients import get_http_client
 
 class LivenessResponse(BaseModel):
     status: str
@@ -115,18 +118,22 @@ async def readiness_probe(
     # fully-healthy instance (Postgres/Neo4j/Qdrant/Redis all up), directly
     # undercutting that recovery mechanism.
     if settings.LLM_BASE_URL:
-        import httpx
-        try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+        # Only ping the gateway if it looks like a personal/local tunnel (ngrok/localhost).
+        # If it's a commercial API (Groq, OpenAI), assume it's highly available to save rate limits.
+        if "ngrok" in settings.LLM_BASE_URL.lower() or "localhost" in settings.LLM_BASE_URL.lower() or "127.0.0.1" in settings.LLM_BASE_URL:
+            try:
+                client = get_http_client()
                 resp = await client.get(
                     f"{settings.LLM_BASE_URL}/models",
                     headers={"ngrok-skip-browser-warning": "1"}
                 )
                 resp.raise_for_status()
                 services.ml_gateway = "ok"
-        except Exception as e:
-            services.ml_gateway = "degraded"
-            logger.warning("ML Gateway unreachable (informational, not gating readiness)", error=str(e))
+            except Exception as e:
+                services.ml_gateway = "degraded"
+                logger.warning("ML Gateway unreachable (informational, not gating readiness)", error=str(e))
+        else:
+            services.ml_gateway = "ok"
 
     if not ready:
         response.status_code = 503

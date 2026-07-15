@@ -77,6 +77,14 @@ def serialize_retrieval_context(ctx: RetrievalContext) -> Dict[str, Any]:
 def serialize_citations(ctx: RetrievalContext) -> List[Dict[str, Any]]:
     """Serialize P2 Citations into a standard list of dictionaries for P3 state."""
     return [
-        {"doc_id": c.doc_id, "passage_id": c.passage_id, "page": c.page}
+        {
+            "doc_id": c.doc_id,
+            "filename": c.filename,
+            "passage_id": c.passage_id,
+            "chunk_index": c.chunk_index,
+            "page_numbers": c.page_numbers,
+            "headings": c.headings,
+            "page": c.page,
+        }
         for c in ctx.citations
     ]

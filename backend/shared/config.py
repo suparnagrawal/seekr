@@ -1,6 +1,7 @@
 
 from pathlib import Path
 from typing import Optional
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
@@ -16,6 +17,9 @@ class Settings(BaseSettings):
     Core configuration for the SEEKR backend.
     Loads settings from the environment or a .env file.
     """
+
+    # CORS Configuration
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
 
     # Project Settings
     PROJECT_NAME: str = "SEEKR Ingestion & Data Layer"
@@ -43,10 +47,10 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION: str = "seekr_chunks"
     QDRANT_API_KEY: str | None = None
     
-    # RQ Queue Configuration
-    RQ_DOC_PARSE_TIMEOUT: int = 600
-    RQ_EMBED_TIMEOUT: int = 600
-    RQ_GRAPH_TIMEOUT: int = 600
+    # RQ Job Timeouts
+    RQ_DOC_PARSE_TIMEOUT: int = 3600
+    RQ_EMBED_TIMEOUT: int = 3600
+    RQ_GRAPH_TIMEOUT: int = 7200
     RQ_RETRY_MAX: int = 3
     RQ_RETRY_INTERVALS: str = "10,30,60"
 
@@ -59,7 +63,7 @@ class Settings(BaseSettings):
     # size and each window is extracted independently, then merged/canonicalized.
     GRAPH_EXTRACTION_WINDOW: int = 12
     # Max extraction windows run concurrently (bounds memory + gateway pressure).
-    GRAPH_EXTRACTION_CONCURRENCY: int = 3
+    GRAPH_EXTRACTION_CONCURRENCY: int = 1
 
     # Knowledge-graph traversal (P2 retrieval). Previously hardcoded magic
     # numbers inside GraphRetriever; surfaced here so they are tunable and
@@ -126,14 +130,22 @@ class Settings(BaseSettings):
     
     # Retrieval Configuration
     RRF_K: int = 60
-    # Lexical (Postgres FTS) pathway. Fully implemented in retrievers/keyword.py;
-    # enabled here so fusion runs as the intended three-pathway system. Falls back
-    # gracefully (empty result) if the `chunks.fts` column is absent.
+    # Lexical (Qdrant text-match) pathway. Uses Qdrant's full-text index
+    # via scroll + MatchText for exact keyword recall (tags, part numbers,
+    # error codes). Set to False to disable this pathway.
     RETRIEVAL_ENABLE_KEYWORD: bool = True
+    
     # Number of fused chunks handed to the generator.
-    RETRIEVAL_TOP_K: int = 8
+    RETRIEVAL_TOP_K: int = 12
 
     model_config = SettingsConfigDict(env_file=str(_ENV_FILE), case_sensitive=True, extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_keys(self):
+        if not self.FAST_MODEL_API_KEY and not self.LLM_API_KEY:
+            if not self.LLM_BASE_URL or "openai.com" in self.LLM_BASE_URL or "fireworks.ai" in self.LLM_BASE_URL:
+                raise ValueError("LLM_API_KEY or FAST_MODEL_API_KEY must be provided for public LLM endpoints.")
+        return self
 
     @property
     def llm_api_key(self) -> str:

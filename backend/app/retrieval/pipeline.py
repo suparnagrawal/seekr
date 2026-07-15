@@ -10,10 +10,11 @@ from backend.shared.config import settings
 logger = structlog.get_logger(__name__)
 
 class DefaultRetrievalPipeline(RetrievalPipeline):
-    def __init__(self, retrievers: List[BaseRetriever], fusion_strategy: FusionStrategy, context_assembler: ContextAssembler):
+    def __init__(self, retrievers: List[BaseRetriever], fusion_strategy: FusionStrategy, context_assembler: ContextAssembler, reranker=None):
         self.retrievers = retrievers
         self.fusion_strategy = fusion_strategy
         self.context_assembler = context_assembler
+        self.reranker = reranker
 
     async def run(self, query: SearchQuery) -> RetrievalResult:
         """
@@ -30,6 +31,9 @@ class DefaultRetrievalPipeline(RetrievalPipeline):
         
         # results_groups is a list of lists of Chunks
         fused_chunks = self.fusion_strategy.fuse(list(results_groups))
+        
+        if self.reranker:
+            fused_chunks = self.reranker.rerank(fused_chunks, query, context)
         
         logger.info("Pipeline fusion complete", total_chunks=len(fused_chunks))
         

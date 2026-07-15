@@ -300,7 +300,7 @@ class GraphRetriever(BaseRetriever):
             chunk_id=f"graph-{node.tag}",
             text="\n".join(lines),
             score=node.score,
-            source="graph_traversal",
+            source="graph",
             fact_ids=[e.fact_id for e in edges],
             payload={},
         )

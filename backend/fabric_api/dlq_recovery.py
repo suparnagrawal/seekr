@@ -8,6 +8,8 @@ from backend.shared.redis_client import ingestion_queue
 
 logger = structlog.get_logger(__name__)
 
+from backend.shared.http_clients import get_http_client
+
 async def dlq_recovery_loop():
     """
     Background daemon that periodically checks if the external ML Gateway is healthy.
@@ -25,7 +27,9 @@ async def dlq_recovery_loop():
     while True:
         try:
             # 1. Ping the external gateway
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # If we are using a commercial API (Groq, OpenAI), skip the ping to save rate limits
+            if "ngrok" in settings.LLM_BASE_URL.lower() or "localhost" in settings.LLM_BASE_URL.lower() or "127.0.0.1" in settings.LLM_BASE_URL:
+                client = get_http_client()
                 resp = await client.get(
                     f"{settings.LLM_BASE_URL}/models",
                     headers={"ngrok-skip-browser-warning": "1"}
@@ -44,13 +48,15 @@ async def dlq_recovery_loop():
                     except Exception as e:
                         logger.error("Failed to requeue job", job_id=job_id, error=str(e))
                         
+            
+            await asyncio.sleep(60)
+            
         except httpx.HTTPError:
             # Expected if gateway is down, silently ignore and wait
-            pass
+            await asyncio.sleep(60)
         except asyncio.CancelledError:
             logger.info("DLQ Auto-Recovery Daemon shutting down.")
             break
         except Exception as e:
             logger.error("Unexpected error in DLQ recovery loop", error=str(e), exc_info=True)
-            
-        await asyncio.sleep(60)
+            await asyncio.sleep(60)

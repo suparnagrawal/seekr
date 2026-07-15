@@ -23,12 +23,11 @@ async def context_graph_query(
         
     search_query = SearchQuery(
         text=query, 
-        session_id="agent_session", 
+        session_id="agent_tool", 
         focused_tag=tag, 
         query_type=q_type
     )
     
-    assembler = get_context_assembler()
     traversal_context = await assembler.assemble(search_query)
     
     retriever = GraphRetriever()

@@ -42,6 +42,17 @@ class QdrantService:
                     distance=models.Distance.COSINE
                 )
             )
+            client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="text",
+                field_schema=models.TextIndexParams(
+                    type="text",
+                    tokenizer=models.TokenizerType.WORD,
+                    min_token_len=2,
+                    max_token_len=20,
+                    lowercase=True,
+                ),
+            )
         else:
             collection_info = client.get_collection(collection_name=self.collection_name)
             if hasattr(collection_info.config.params, "vectors") and collection_info.config.params.vectors.size != settings.EMBEDDING_DIMENSION:
@@ -99,7 +110,7 @@ class QdrantService:
             logger.warning("Failed to retrieve existing chunk IDs, assuming none exist", document_id=document_id, error=str(e))
             return set()
 
-    def upsert_chunks(self, document_id: str, chunks: list[dict[str, Any]], embeddings: list[list[float]], embedding_model: str):
+    def upsert_chunks(self, document_id: str, chunks: list[dict[str, Any]], embeddings: list[list[float]], embedding_model: str, parser_version: str = "docling==unknown"):
         """
         Upserts a batch of chunks and their corresponding embeddings into Qdrant.
         """
@@ -115,12 +126,6 @@ class QdrantService:
         points = []
         for chunk, vector in zip(chunks, embeddings):
             qdrant_id = self._convert_id_to_uuid(chunk["id"])
-            
-            import importlib.metadata
-            try:
-                docling_version = f"docling=={importlib.metadata.version('docling')}"
-            except importlib.metadata.PackageNotFoundError:
-                docling_version = "docling==unknown"
                 
             payload = {
                 "document_id": chunk.get("source_document", document_id),
@@ -132,7 +137,7 @@ class QdrantService:
                 "page_numbers": chunk.get("page_numbers", []),
                 "token_count": chunk.get("token_count", 0),
                 "bbox": chunk.get("bbox", None),
-                "parser_version": chunk.get("parser_version", docling_version),
+                "parser_version": chunk.get("parser_version", parser_version),
                 "embedding_model": embedding_model,
                 "content_type": chunk.get("content_type", "text"),
                 "text": chunk.get("text", ""), # Crucial for retrieval
@@ -156,6 +161,23 @@ class QdrantService:
         except Exception as e:
             logger.error("Qdrant upsert failed", document_id=document_id, error=str(e), exc_info=True)
             raise InfrastructureError(f"Failed to upsert to Qdrant: {str(e)}", service="Qdrant")
+
+    def delete_by_document_id(self, document_id: str) -> None:
+        """Delete all vectors belonging to a specific document."""
+        client = self._get_client()
+        from qdrant_client.http import models
+        
+        client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="document_id",
+                        match=models.MatchValue(value=document_id)
+                    )
+                ]
+            ),
+        )
 
 @lru_cache(maxsize=1)
 def get_qdrant_service() -> QdrantService:

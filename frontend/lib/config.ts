@@ -48,7 +48,7 @@ export const config = {
   /** Product name shown in the UI shell. */
   appName: optionalEnv(process.env.NEXT_PUBLIC_APP_NAME, 'SEEKR'),
   /** Entity the knowledge-graph landing view centres on by default. */
-  defaultEntityTag: optionalEnv(process.env.NEXT_PUBLIC_DEFAULT_ENTITY, 'P-101A'),
+  defaultEntityTag: optionalEnv(process.env.NEXT_PUBLIC_DEFAULT_ENTITY, ''),
   /** Default knowledge-graph traversal depth. */
   defaultGraphDepth: Number(optionalEnv(process.env.NEXT_PUBLIC_DEFAULT_GRAPH_DEPTH, '2')),
   /** Maximum upload size in megabytes (should mirror the backend limit). */

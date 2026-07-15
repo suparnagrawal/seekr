@@ -1,6 +1,5 @@
 import structlog
 from contextlib import asynccontextmanager
-import time
 import asyncio
 from fastapi import FastAPI
 
@@ -20,7 +19,10 @@ async def lifespan(app: FastAPI):
     FastAPI lifespan context manager for graceful startup and shutdown.
     Replaces deprecated @app.on_event("startup") and @app.on_event("shutdown").
     """
+    from backend.shared.http_clients import init_http_client, close_http_client
+    
     # Startup Sequence
+    await init_http_client()
     setup_logging()
     logger.info("Application starting up...", version=settings.VERSION)
     
@@ -32,10 +34,10 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to create upload directory", error=str(e))
         raise
 
-    def wait_for_dependency(dependency_func, name: str, max_retries: int = 5, initial_wait: int = 2):
+    async def wait_for_dependency(dependency_func, name: str, max_retries: int = 5, initial_wait: int = 2):
         for attempt in range(1, max_retries + 1):
             try:
-                dependency_func()
+                await asyncio.to_thread(dependency_func)
                 logger.info(f"{name} is ready.")
                 return
             except Exception as e:
@@ -44,14 +46,14 @@ async def lifespan(app: FastAPI):
                     raise
                 wait_time = initial_wait * (2 ** (attempt - 1))
                 logger.warning(f"Waiting for {name}...", attempt=attempt, sleep=f"{wait_time}s", error=type(e).__name__)
-                time.sleep(wait_time)
+                await asyncio.sleep(wait_time)
 
     from backend.shared.services.qdrant_service import get_qdrant_service
     
     # Verification check with independent retries
-    wait_for_dependency(redis_conn.ping, "Redis")
-    wait_for_dependency(neo4j_driver.verify_connectivity, "Neo4j")
-    wait_for_dependency(get_qdrant_service().bootstrap_collections, "Qdrant")
+    await wait_for_dependency(redis_conn.ping, "Redis")
+    await wait_for_dependency(neo4j_driver.verify_connectivity, "Neo4j")
+    await wait_for_dependency(get_qdrant_service().bootstrap_collections, "Qdrant")
     
     logger.info("Infrastructure clients verified and ready.")
 
@@ -79,7 +81,7 @@ async def lifespan(app: FastAPI):
         logger.error("Error closing async database pools", error=str(e))
         
     try:
-        neo4j_driver.close()
+        await asyncio.to_thread(neo4j_driver.close)
         logger.info("Neo4j driver closed.")
     except Exception as e:
         logger.error("Error closing Neo4j driver", error=str(e))
@@ -91,7 +93,7 @@ async def lifespan(app: FastAPI):
         logger.error("Error closing Neo4j async driver", error=str(e))
         
     try:
-        redis_conn.close()
+        await asyncio.to_thread(redis_conn.close)
         logger.info("Redis connection closed.")
     except Exception as e:
         logger.error("Error closing Redis connection", error=str(e))
@@ -113,5 +115,11 @@ async def lifespan(app: FastAPI):
         logger.info("Qdrant async client closed.")
     except Exception as e:
         logger.error("Error closing Qdrant async client", error=str(e))
+
+    try:
+        await close_http_client()
+        logger.info("HTTP client closed.")
+    except Exception as e:
+        logger.error("Error closing HTTP client", error=str(e))
 
     logger.info("Shutdown sequence complete.")

@@ -158,10 +158,26 @@ async def run_escalation_graph(escalation: EscalationContext) -> AsyncIterator[s
 
     # Consume events from the queue and yield them
     while True:
-        event = await queue.get()
-        if event is None:
+        get_task = asyncio.create_task(queue.get())
+        done, pending = await asyncio.wait(
+            [get_task, graph_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        
+        if get_task in done:
+            event = get_task.result()
+            if event is None:
+                break
+            yield event
+        else:
+            # graph_task finished early (either crashed or exited without putting None)
+            get_task.cancel()
             break
-        yield event
 
-    # Ensure any exceptions from the graph execution are raised
-    await graph_task
+    # Ensure any exceptions from the graph execution are surfaced as SSE errors
+    # rather than silently breaking the response stream.
+    try:
+        await graph_task
+    except Exception as exc:
+        from backend.app.agents.shared.streaming import emit_error as _emit_error
+        yield _emit_error(f"Escalation workflow failed: {exc}")

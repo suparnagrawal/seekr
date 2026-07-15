@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 class QueryRequest(BaseModel):
     query: str
@@ -11,7 +11,11 @@ class TokenEventData(BaseModel):
 
 class CitationEventData(BaseModel):
     doc_id: str
+    filename: str
     passage_id: str
+    chunk_index: int
+    page_numbers: List[int] = []
+    headings: List[str] = []
     page: Optional[int] = None
 
 class AgentTriggerEventData(BaseModel):

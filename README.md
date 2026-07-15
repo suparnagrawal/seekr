@@ -1,325 +1,302 @@
+<div align="center">
+
+![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)
+![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)
+![Groq](https://img.shields.io/badge/Groq-High_Speed_Inference-f55036.svg)
+![LangGraph](https://img.shields.io/badge/LangGraph-Agent-orange.svg)
+![Neo4j](https://img.shields.io/badge/Neo4j-Graph-4581c3.svg)
+![Qdrant](https://img.shields.io/badge/Qdrant-Vector-ff5252.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)
+
 # Seekr
 
-Seekr is a production-grade retrieval-augmented generation (RAG) system designed for complex industrial document intelligence. It ingests technical documents, constructs a knowledge graph, and exposes a multi-agent reasoning layer that answers natural language queries with full provenance and citation support.
+> **AI Operating System for Industrial Knowledge**
 
-The system is built across three architectural phases, each layered on the last:
+Turn scattered industrial documents into a searchable knowledge graph and talk to them using a multi-agent AI copilot with complete citations.
 
-- **P1 -- Ingestion Foundation.** Resilient document parsing, chunking, embedding, and knowledge graph extraction.
-- **P2 -- Hybrid Retrieval Pipeline.** Three-pathway retrieval (dense, lexical, graph traversal) fused via Reciprocal Rank Fusion.
-- **P3 -- Multi-Agent Reasoning.** Copilot orchestrator with LangGraph-based escalation to specialist workers.
+**AMD Developer Hackathon 2026 – Unicorn Track**
+
+**Live Demo:** [https://seekr-search-ai.vercel.app](https://seekr-search-ai.vercel.app)
+
+</div>
+
+---
+
+## Why Seekr?
+
+Traditional RAG retrieves text.
+**Seekr retrieves knowledge.**
+
+We combine:
+- **Knowledge Graphs**
+- **Hybrid Retrieval**
+- **Multi-Agent Reasoning**
+
+To answer complex questions that no single document contains.
+
+---
+
+## Features
+
+- **Layout-aware PDF parsing**
+- **Hybrid Retrieval** (Dense + Graph + Lexical exact-match pathway)
+- **Metadata-Aware Reranking** to surface primary sources over secondary references
+- **Knowledge Graph Construction** with open, domain-adaptive entity/relationship extraction
+- **Multi-Agent Reasoning** (LangGraph Supervisor with specialist workers)
+- **Streaming Responses** (Robust SSE with agent tracing, reasoning, and tool executions)
+- **Source Citations**
+- **Industrial Knowledge Graph**
+- **Self-Healing Queue** with automatic Dead Letter Queue recovery
+- **Resumable, Idempotent Ingestion** (embedding jobs recover cleanly from partial failure)
+- **S3-Compatible Object Storage** with local-disk fallback for development
+- **Production-Ready Backend** (Hardened with session continuity, async graceful shutdown, and container healthchecks)
+
+---
+
+## High-Speed Inference & Flexible ML Architecture
+
+Embedding, chunking, parsing, generation, and retrieval-time reasoning are cleanly decoupled. Seekr delegates heavy multi-agent reasoning to high-speed cloud inference providers (like **Groq**) to eliminate network tunnel latency, while keeping document parsing and embeddings flexible (running locally or via dedicated microservices).
+
+| Task | Technology |
+|------|------------|
+| **LLM Inference** | Groq / OpenAI Compatible API |
+| **OCR / Parsing** | IBM Docling |
+| **Embeddings** | FastEmbed |
+| **API Boundary** | Standardized OpenAI Interface |
+
+**Why this matters:**
+- **Zero code changes** required to switch between local vLLM, Groq, Fireworks, or OpenAI.
+- **Eliminates TCP/ngrok bottlenecks**, allowing the LangGraph agents to reason and stream at maximum token-per-second limits.
+- **Robust Ingestion:** The background recovery daemon polls endpoints and automatically requeues any ingestion jobs from the Redis Dead Letter Queue if network interruptions occur.
 
 ---
 
 ## Architecture
 
-```
-                         +------------------+
-                         |   Next.js 16     |
-                         |   Frontend       |
-                         |  (React 19, TS)  |
-                         +--------+---------+
-                                  |
-                           SSE / REST
-                                  |
-                         +--------v---------+
-                         |   FastAPI         |
-                         |   Fabric API      |
-                         +--------+---------+
-                                  |
-              +-------------------+-------------------+
-              |                   |                   |
-     +--------v-------+  +-------v--------+  +-------v--------+
-     | P3 Agent Layer  |  | P2 Retrieval   |  | P1 Ingestion   |
-     | (Copilot,       |  | Pipeline       |  | Worker (RQ)    |
-     |  Supervisor,    |  | (Dense, KW,    |  | Parsing,       |
-     |  Workers)       |  |  Graph, RRF)   |  | Chunking,      |
-     +--------+--------+  +-------+--------+  | Embedding,     |
-              |                   |            | Graph Extract) |
-              |                   |            +--+----+----+---+
-              |                   |               |    |    |
-         +----v----+         +----v----+     +----v--+ | +--v----+
-         | OpenAI- |         | Qdrant  |     | S3    | | | Neo4j |
-         | compat  |         | (vec)   |     |       | | |       |
-         | LLM     |         +---------+     +-------+ | +-------+
-         +---------+                            +-------v-------+
-                                                | PostgreSQL    |
-                                                | (metadata,    |
-                                                |  entities,    |
-                                                |  FTS)         |
-                                                +---------------+
+```text
+        Next.js (Frontend)
+               ↓
+   FastAPI (API Gateway)
+               ↓
+    RQ Workers (Async Queue + DLQ Recovery)
+               ↓
+     Hybrid Retrieval Engine (RRF + Reranking)
+               ↓
+   Multi-Agent Reasoning (P3)
+               ↓
+ +-----------------------------------+
+ | Qdrant | Neo4j | Postgres | S3 |
+ +-----------------------------------+
+               ↓
+    Groq / Cloud LLM (High-Speed Inference)
 ```
 
-### Core Technologies
+---
 
-| Layer          | Technology                                              |
-| -------------- | ------------------------------------------------------- |
-| API            | FastAPI (async, application factory pattern)             |
-| Frontend       | Next.js 16, React 19, TypeScript, Tailwind CSS 4         |
-| Database       | PostgreSQL 15 (SQLAlchemy 2 ORM, Alembic migrations)     |
-| Vector Store   | Qdrant v1.18 (dense cosine similarity)                   |
-| Graph Store    | Neo4j 5 (Cypher, async driver)                           |
-| Task Queue     | Redis 7 + RQ (background ingestion with retry policies)  |
-| Parsing        | IBM Docling (layout-aware PDF extraction with OCR)        |
-| Embeddings     | FastEmbed (`BAAI/bge-base-en-v1.5`, 768-dim)             |
-| LLM            | OpenAI-compatible API (configurable: OpenAI, Fireworks, local VLLM) |
-| Agent Runtime  | LangGraph (state-machine orchestration for escalation)    |
-| Object Storage | S3-compatible (AWS S3, Supabase, Cloudflare R2)           |
-| Auth           | JWT with remote JWKS validation (RS256)                   |
-| CI             | GitHub Actions (Ruff lint, Pytest, Next.js build)         |
+## Data Flow Diagrams
+
+### 1. File Upload to Graph Generation (Ingestion)
+
+```mermaid
+graph TD
+    A[User / Frontend] -->|Uploads PDF| B(FastAPI Gateway)
+    B -->|Uploads Artifact| C[(S3 / Object Storage)]
+    B -->|Enqueues Job| D[Redis / RQ]
+    D -->|Pops Job| E(Ingestion Worker)
+    E -->|1. Parse Document| F[IBM Docling / AMD]
+    F -->|Parsed Content| E
+    E -->|2. Generate Embeddings| G[FastEmbed]
+    G -->|Embeddings, Resumable| E
+    E -->|3. Extract Entities| H[Groq / Cloud LLM]
+    H -->|Graph Data| E
+    E -->|Store Nodes/Edges, Batched| I[(Neo4j)]
+    E -->|Store Embeddings| J[(Qdrant)]
+    E -->|Update Metadata| K[(PostgreSQL)]
+    D -.->|On AMD Gateway Downtime| L(DLQ Recovery Daemon)
+    L -.->|Auto-Requeues Failed Jobs| D
+```
+
+### 2. Query Retrieval Pipeline
+
+```mermaid
+graph TD
+    A[User / Frontend] -->|Asks Question| B(FastAPI Gateway)
+    B -->|Query| C(Multi-Agent System)
+    C -->|Generate Embedding| D[FastEmbed / AMD]
+    C -->|Vector Search| E[(Qdrant)]
+    C -->|Graph Traversal| F[(Neo4j)]
+    E -->|Vector Results| G(Hybrid Retrieval Engine)
+    F -->|Graph Results| G
+    G -->|RRF Fusion| H[Fused Context]
+    H -->|Metadata-Aware Reranking| M[Reranked Context]
+    M -->|Prompt w/ Context| I[Groq / Cloud LLM]
+    I -->|Streaming Response| C
+    C -->|Streams Answer & Citations| A
+```
 
 ---
 
-## P1 -- Ingestion Pipeline
+## Demo Flow
 
-Documents uploaded via the `/api/v1/upload` endpoint enter a multi-stage background pipeline orchestrated by RQ.
-
-**Stage sequence:**
-
-1. **Upload and Deduplication.** The file is streamed to S3 while computing a SHA-256 hash. A unique constraint on the hash column prevents duplicate processing; concurrent uploads of the same file are handled via PostgreSQL constraint introspection.
-
-2. **Parsing.** IBM Docling extracts structured Markdown from PDFs with full OCR and table structure recognition. Parsing can be offloaded to a remote GPU gateway over an ngrok tunnel for resource-constrained deployments.
-
-3. **Hierarchical Chunking.** Docling's `HierarchicalChunker` segments the parsed document using layout-aware heading boundaries. Each chunk receives a deterministic SHA-256 ID derived from its content, heading path, and page location.
-
-4. **Embedding and Indexing.** FastEmbed generates 768-dimensional vectors in batches of 32. Vectors are upserted directly to Qdrant with full provenance metadata. The job is resumable: on restart, it queries Qdrant for already-indexed chunk IDs and skips them.
-
-5. **Knowledge Graph Extraction.** The document is split into fixed-size windows (configurable, default 12 chunks per window). Each window is sent to the configured LLM for open-domain entity and relationship extraction. Results across windows are canonicalized and deduplicated before a single batched write to Neo4j. Node and relationship types are LLM-derived (not allow-listed), with all interpolated Cypher labels hard-restricted to `[a-z0-9_]` / `[A-Z0-9_]` character classes to prevent injection.
-
-Steps 4 and 5 fan out in parallel from the parsing stage. The document tracks fine-grained status transitions:
-`UPLOADED -> QUEUED -> PROCESSING -> PARSED -> EMBEDDING/GRAPH_BUILDING -> EMBEDDED/GRAPH_BUILT -> COMPLETED`.
-
-**Resilience features:**
-
-- Exponential backoff retry policies on all RQ jobs.
-- A `CleanupService` rolls back orphaned S3 artifacts and database rows on failure.
-- A DLQ Auto-Recovery Daemon polls the RQ `FailedJobRegistry` every 60 seconds; when the external ML gateway comes back online, it automatically requeues all failed jobs.
-- Infrastructure boot uses synchronous exponential backoff probes against Redis, Qdrant, and Neo4j before accepting traffic.
+**Upload PDF** ➔ **Graph Builds** ➔ **Ask Question** ➔ **Get Cited Answer** ➔ **Explore Graph**
 
 ---
 
-## P2 -- Retrieval Pipeline
+## Tech Stack
 
-The retrieval layer is built on an object-oriented pipeline architecture with pluggable retriever pathways and a formal fusion strategy.
-
-**Pathways:**
-
-| Retriever   | Source      | Description                                                                                                                   |
-| ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Dense       | Qdrant      | Cosine similarity search over BGE embeddings.                                                                                 |
-| Keyword     | PostgreSQL  | Full-text search via `plainto_tsquery` on the `chunks.fts` column. Restores exact-match recall for tags, part numbers, codes. |
-| Graph       | Neo4j       | Level-synchronous best-first traversal from entity seeds, with configurable decay, relevance pruning, and hub/bridge detection.|
-
-All retrievers implement a `BaseRetriever` abstract class that enforces a standard error boundary: a failing pathway returns an empty result rather than crashing the pipeline.
-
-**Fusion:**
-
-Results from all active pathways are merged via Reciprocal Rank Fusion (RRF). The fused set is truncated to `RETRIEVAL_TOP_K` (default 8) chunks before being passed to the generation layer.
-
-**Context Assembly:**
-
-Before retrieval, a `ContextAssembler` builds a `TraversalContext` by:
-
-1. Classifying the query type (factual, diagnostic, procedural, open) via heuristic rules with LLM fallback.
-2. Formulating a graph search strategy: the LLM extracts entity search terms and target relationship types from the query and recent conversation history.
-3. Resolving explicit and implicit entity tags from PostgreSQL's entity registry.
-4. Generating a query embedding via a cascading fallback chain (remote endpoint, OpenAI, local FastEmbed).
-
-**Graph Traversal:**
-
-The `GraphRetriever` implements a level-synchronous traversal that fetches all neighbors for an entire expansion wave in a single batched Cypher query, bounding round-trips by depth rather than node count. Traversal parameters (max nodes, max depth, decay factor, relevance threshold, off-target multiplier) are fully configurable via environment variables. For diagnostic and open queries, additional bridge-node and hub-detection passes supplement the primary traversal.
+| Layer      | Tech            |
+| ---------- | --------------- |
+| **Frontend**   | Next.js 16      |
+| **Backend**    | FastAPI         |
+| **Vector DB**  | Qdrant          |
+| **Graph DB**   | Neo4j           |
+| **Metadata**   | PostgreSQL      |
+| **Object Storage** | S3-Compatible (boto3) |
+| **Queue**      | Redis + RQ (with DLQ recovery) |
+| **AI Compute** | Groq / Any OpenAI-Compatible API |
+| **OCR**        | IBM Docling     |
+| **Embeddings** | FastEmbed       |
 
 ---
 
-## P3 -- Agent Layer
+## Repository Structure
 
-The agent layer implements a Copilot-Supervisor-Worker architecture for multi-step reasoning, with all responses streamed as Server-Sent Events (SSE).
+Judges, start here to navigate the codebase:
 
-**Copilot** (`/api/v1/query`): The primary entry point. Retrieves context via P2, streams an initial LLM-generated answer, then evaluates whether the query requires specialist reasoning.
+```text
+seekr/
+├── backend/
+│   ├── ingestion_worker/  # P1: Parsing, embedding, and KG extraction
+│   ├── app/retrieval/     # P2: Hybrid Retrieval (Dense, Lexical, Graph) + Reranking
+│   ├── app/agents/        # P3: LangGraph Multi-Agent System
+│   ├── shared/            # Config, DB clients, JWT verification, object storage
+│   └── fabric_api/        # FastAPI Application Layer + DLQ Recovery Daemon
+├── frontend/              # Next.js User Interface
+├── scripts/                # Deployment and utility scripts
+├── *.ipynb                # AMD AI Notebooks for the unified ML gateway
+├── docs/                  # Architecture & Design Specs
+└── docker-compose.yml     # Local Infrastructure
+```
 
-**Supervisor**: A pure routing component. If the Copilot escalates, the Supervisor classifies the query into one of three specialist domains using LLM-based routing with keyword-based and default fallbacks. The Supervisor never performs retrieval, generation, or database access.
-
-**Specialist Workers** (also available as direct endpoints):
-
-| Worker    | Endpoint              | Domain                                                |
-| --------- | --------------------- | ----------------------------------------------------- |
-| Asset     | `/api/v1/agents/asset`    | Asset history, specifications, maintenance records    |
-| Diagnose  | `/api/v1/agents/diagnose` | Root-cause analysis, failure investigation            |
-| Comply    | `/api/v1/agents/comply`   | Regulatory compliance, safety protocol verification   |
-
-Direct agent endpoints bypass the Copilot and Supervisor entirely. They construct `AgentState` from the request and invoke the worker workflow directly.
-
-The LangGraph workflow manages the state machine for escalated queries: `Supervisor -> Router -> Worker -> Stream`. All LLM calls (streaming and non-streaming) are centralized in a shared invocation layer with Tenacity retry policies and explicit reasoning-content filtering.
-
----
-
-## Frontend
-
-The frontend is a Next.js 16 application (React 19, TypeScript) with the following views:
-
-| Route          | Description                                                        |
-| -------------- | ------------------------------------------------------------------ |
-| `/`            | Knowledge graph explorer (Cytoscape.js) with entity side panel     |
-| `/documents`   | Document management: upload, status tracking, retry failed jobs    |
-| `/agents/diagnose` | Direct diagnostic agent interface                             |
-| `/compliance`  | Compliance verification interface                                  |
-| `/entity/[tag]`| Deep entity detail view                                            |
-
-State management uses Zustand. Authentication is handled via JWT with a React context provider. The UI is built with Tailwind CSS 4, Framer Motion animations, and Lucide icons.
+### Where to Look
+- **`backend/ingestion_worker`** → Knowledge Graph Construction
+- **`backend/app/retrieval`** → Hybrid Retrieval Engine, RRF Fusion, and Reranking
+- **`backend/app/agents`** → LangGraph Multi-Agent System
+- **`backend/fabric_api/dlq_recovery.py`** → Self-Healing Queue Recovery
 
 ---
 
-## Getting Started
+## Setup Instructions
 
 ### Prerequisites
-
 - Python 3.11+
 - Node.js 20+
-- Docker and Docker Compose
+- Docker & Docker Compose
+- AMD AI Notebook
 
-### 1. Start Infrastructure
+### 1. AMD Notebook Setup
+Upload `seekr_unified_notebook.ipynb` to the AMD AI Notebooks platform. Run the cells to expose the unified ML gateway endpoints via Ngrok. 
 
+### 2. Infrastructure (Docker)
 ```bash
 docker compose up -d
 ```
 
-This provisions PostgreSQL, Redis, Qdrant, and Neo4j with persistent volumes.
-
-### 2. Backend Setup
-
+### 3. Backend Setup
 ```bash
 cd backend
-cp .env.example .env       # Edit with your LLM API key and connection strings
+cp .env.example .env
 uv venv
 source .venv/bin/activate
 uv pip install -e ".[dev]"
-```
-
-### 3. Database Migrations
-
-```bash
-cd backend
 alembic upgrade head
-```
-
-### 4. Run the API Server
-
-```bash
 uv run uvicorn backend.fabric_api.main:app --reload --port 8000
 ```
 
-### 5. Run the Ingestion Worker
-
-In a separate terminal:
-
+### 4. Ingestion Worker
+*(In a separate terminal)*
 ```bash
 cd backend
 uv run python -m backend.ingestion_worker.main
 ```
 
-### 6. Frontend Setup
-
+### 5. Frontend Setup
 ```bash
 cd frontend
-cp .env.example .env       # Configure API URL and auth settings
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:3000` and the API at `http://localhost:8000`.
+---
+
+## Environment Variables
+
+**Backend (`backend/.env`)**
+| Variable | Description |
+|----------|-------------|
+| `CORS_ORIGINS` | Comma-separated list of allowed frontend origins for CORS |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `DEBUG` | Enable debug mode (`true`/`false`) |
+| `EMBEDDING_MODEL` | Embedding model name |
+| `EMBEDDING_MODEL_ENDPOINT` | Embedding model API endpoint | (AMD AI Notebook tunneled via ngrok)
+| `FAST_MODEL` | Lightweight LLM used for fast responses |
+| `FAST_MODEL_API_KEY` | API key for the fast LLM |
+| `FAST_MODEL_BASE_URL` | Base URL of the fast LLM provider | (e.g. Groq, Fireworks, OpenAI)
+| `LLM_API_KEY` | API key for the primary LLM |
+| `LLM_BASE_URL` | Base URL of the primary LLM provider | (e.g. Groq, Fireworks, OpenAI)
+| `LLM_MODEL` | Primary LLM model name | 
+| `NEO4J_PASSWORD` | Neo4j database password |
+| `NEO4J_URI` | Graph database connection URI |
+| `NEO4J_USER` | Neo4j database username |
+| `PROJECT_NAME` | Application name |
+| `QDRANT_API_KEY` | Qdrant Cloud API key (optional for local instances) |
+| `QDRANT_COLLECTION` | Qdrant collection name |
+| `QDRANT_URL` | Qdrant server URL |
+| `REDIS_URL` | Redis connection URL |
+| `REMOTE_PARSER_URL` | Remote Docling parser endpoint | (Optional, for delegated extraction)
+| `S3_ACCESS_KEY_ID` | S3-compatible storage access key |
+| `S3_BUCKET_NAME` | S3 bucket name |
+| `S3_ENDPOINT_URL` | S3-compatible storage endpoint |
+| `S3_REGION` | S3 bucket region |
+| `S3_SECRET_ACCESS_KEY` | S3-compatible storage secret key |
+
+**Frontend (`frontend/.env`)**
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Base URL of the backend API |
+| `NEXT_PUBLIC_API_PREFIX` | Versioned API path prefix |
+| `NEXT_PUBLIC_APP_NAME` | Application name displayed in the UI |
+| `NEXT_PUBLIC_DEFAULT_ENTITY` | Default entity shown in the knowledge graph |
+| `NEXT_PUBLIC_DEFAULT_GRAPH_DEPTH` | Default graph traversal depth (number of hops) |
+| `NEXT_PUBLIC_MAX_UPLOAD_MB` | Maximum file upload size (MB) |
+| `NEXT_PUBLIC_REQUEST_TIMEOUT_MS` | Timeout for non-streaming API requests (ms) |
 
 ---
 
-## Configuration
+## Production Deployment
 
-All backend configuration is centralized in `backend/shared/config.py` via Pydantic Settings, loaded from the `.env` file adjacent to the backend package. Key configuration groups:
-
-| Group                  | Variables                                                              |
-| ---------------------- | ---------------------------------------------------------------------- |
-| LLM                   | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TEMPERATURE`         |
-| PostgreSQL             | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SERVER`, `DATABASE_URL` |
-| Neo4j                  | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`                            |
-| Qdrant                 | `QDRANT_HOST`, `QDRANT_PORT`, `QDRANT_COLLECTION`                      |
-| Redis                  | `REDIS_HOST`, `REDIS_PORT`, `REDIS_URL`                                |
-| Graph Extraction       | `GRAPH_EXTRACTION_ENABLED`, `GRAPH_EXTRACTION_WINDOW`, `GRAPH_EXTRACTION_CONCURRENCY` |
-| Graph Traversal        | `GRAPH_TRAVERSAL_MAX_NODES`, `GRAPH_TRAVERSAL_DECAY`, `GRAPH_TRAVERSAL_RELEVANCE_THRESHOLD` |
-| Retrieval              | `RETRIEVAL_TOP_K`, `RETRIEVAL_ENABLE_KEYWORD`, `RRF_K`                 |
-| Object Storage         | `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_BUCKET_NAME`                |
-| Auth                   | `ENABLE_AUTH`, `JWKS_URL`, `JWT_AUDIENCE`                               |
-| Remote ML Gateway      | `REMOTE_PARSER_URL`, `EMBEDDING_MODEL_ENDPOINT`, `LLM_BASE_URL`        |
-
-Authentication is toggled via `ENABLE_AUTH`. When disabled (default for local development), all endpoints are open. When enabled, all non-health endpoints require a valid JWT verified against the configured JWKS URL.
+| Service | Hosted On |
+|---------|-----------|
+| **Frontend** | Vercel |
+| **Backend API** | Render |
+| **LLM Inference** | Groq Cloud API |
+| **ML Gateway (Parsing & Embeds)** | Render / Local Container |
+| **Vector DB** | Qdrant Cloud |
+| **Graph DB** | Neo4j AuraDB |
+| **Relational DB** | Neon Postgres |
+| **Cache** | Redis |
+| **Object Storage** | Supabase S3-Compatible Storage |
 
 ---
 
-## Project Structure
+## Roadmap
 
-```
-seekr/
-  backend/
-    fabric_api/           # FastAPI application (routes, lifespan, middleware)
-      routes/             #   /upload, /documents, /status, /health, /ready
-    app/
-      api/                # P2/P3 API routers (query, agents, graph)
-      retrieval/          # P2 retrieval pipeline
-        retrievers/       #   Dense, Keyword, Graph implementations
-      agents/             # P3 agent layer
-        copilot/          #   Query orchestrator, trigger classifier
-        supervisor/       #   LLM + keyword routing
-        asset/            #   Asset specialist worker
-        diagnose/         #   Diagnostic specialist worker
-        comply/           #   Compliance specialist worker
-        graph/            #   LangGraph escalation workflow
-        shared/           #   LLM client, streaming, state, tools
-      db/                 # Query functions (Qdrant, Neo4j, PostgreSQL, Redis)
-      schemas/            # Pydantic request/response schemas
-      kg/                 # Knowledge graph shared tools
-    ingestion_worker/     # RQ background jobs
-      jobs.py             #   Parsing + chunking pipeline
-      embedding_jobs.py   #   Embedding + Qdrant indexing
-      graph_jobs.py       #   LLM-based entity/relationship extraction
-      orchestrator.py     #   Job chaining and fan-out
-    shared/               # Cross-cutting concerns
-      config.py           #   Centralized Pydantic Settings
-      models/             #   SQLAlchemy models (Document, Entity, Fact)
-      services/           #   Parsing, Chunking, Embedding, Qdrant, Upload
-      repositories/       #   Document repository (data access layer)
-      storage.py          #   S3-compatible object storage
-      security.py         #   JWT/JWKS authentication
-    alembic/              # Database migration scripts
-    tests/                # Pytest suite
-  frontend/
-    app/                  # Next.js App Router pages
-      (dashboard)/        #   Authenticated dashboard routes
-      login/              #   Authentication page
-    components/           #   React components (graph, agents, layout, UI)
-    lib/                  #   API client, auth context, stores, types
-  scripts/                # Deployment and utility scripts
-  docs/                   # Architecture specs and handover documents
-  docker-compose.yml      # Infrastructure services
-  .github/workflows/      # CI pipeline
-```
-
----
-
-## Testing
-
-```bash
-cd backend
-uv run pytest tests/
-```
-
-The test suite covers upload idempotency, retrieval pipeline correctness, graph extraction parsing, and JWT security validation. CI runs Ruff linting, the full Pytest suite against containerized infrastructure, and a Next.js production build on every push to `main`.
-
----
-
-## Deployment
-
-The repository includes Render deployment scripts (`scripts/render-build.sh`, `scripts/render-start.sh`). The start script launches the RQ ingestion worker in the background with a 20-second delayed start to avoid ONNX/CPU deadlocks with the Uvicorn process. Thread-count environment variables (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, etc.) are pinned to 1 to minimize memory footprint on constrained instances.
-
-For resource-constrained deployments, heavy ML workloads (Docling parsing, embedding generation, LLM inference) can be offloaded to a remote GPU notebook via ngrok. The backend detects the presence of `REMOTE_PARSER_URL` and `LLM_BASE_URL` and routes accordingly.
-
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
+- [ ] Kafka Integration for high-throughput ingestion
+- [ ] Comprehensive Observability (Prometheus + OpenTelemetry)
+- [ ] Fine-grained Server-side RBAC
+- [ ] P&ID Vision (Piping and Instrumentation Diagrams)
+- [ ] Industrial Vision-Language Models (VLM)
+- [ ] Advanced Graph Analytics

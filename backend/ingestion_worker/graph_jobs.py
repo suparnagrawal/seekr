@@ -30,10 +30,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+from pathlib import Path
 import re
 import uuid
 from collections import defaultdict
-from pathlib import Path
+
 from typing import Any, Dict, List, Tuple
 
 import structlog
@@ -166,23 +168,29 @@ def _window(items: List[str], size: int) -> List[List[str]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-async def _extract_window(chunk_texts: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract_window(chunk_texts: List[str], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
     joined = "\n\n---\n\n".join(chunk_texts)
     messages = [
         {"role": "system", "content": _EXTRACTION_SYSTEM_PROMPT},
         {"role": "user", "content": joined},
     ]
     logger.info("graph_extraction_window_llm_call", prompt_length=len(joined), chunks=len(chunk_texts))
+    
+    target_base_url = None
+    if ml_gateway_url:
+        target_base_url = ml_gateway_url.rstrip('/') + '/v1'
+        
     raw = await generate(
         messages,
         temperature=0.0,
         max_tokens=settings.LLM_MAX_TOKENS,
         response_format={"type": "json_object"},
+        base_url_override=target_base_url
     )
     return _parse_extraction(raw)
 
 
-async def _extract(chunk_texts: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract(chunk_texts: List[str], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
     """Extract entities/relationships over the whole document via windowed,
     bounded-concurrency LLM calls, then merge the per-window results.
 
@@ -195,7 +203,7 @@ async def _extract(chunk_texts: List[str]) -> Dict[str, List[Dict[str, Any]]]:
     async def _guarded(win: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         async with semaphore:
             try:
-                return await _extract_window(win)
+                return await _extract_window(win, ml_gateway_url)
             except Exception as exc:  # noqa: BLE001 - per-window fail-soft
                 logger.warning("graph_extraction_window_failed", error=str(exc), exc_info=True)
                 return {"entities": [], "relationships": []}
@@ -395,22 +403,25 @@ def _load_chunk_texts(document_id: str) -> List[str]:
         
     cap = settings.GRAPH_EXTRACTION_MAX_CHUNKS
     texts: List[str] = []
-    with chunks_path.open("r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            c = json.loads(line)
-            if c.get("text"):
-                texts.append(c["text"])
-            if cap and cap > 0 and len(texts) >= cap:
-                break
-                
-    import os
-    os.remove(temp_chunks_path)
+    
+    try:
+        with chunks_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                c = json.loads(line)
+                if c.get("text"):
+                    texts.append(c["text"])
+                if cap and cap > 0 and len(texts) >= cap:
+                    break
+    finally:
+        if chunks_path.exists():
+            os.remove(chunks_path)
+            
     return texts
 
 
-def process_graph_job(document_id: str) -> Dict[str, Any]:
+def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Dict[str, Any]:
     """
     RQ entrypoint for P1 knowledge-graph extraction.
 
@@ -439,7 +450,7 @@ def process_graph_job(document_id: str) -> Dict[str, Any]:
             return {"status": "skipped", "reason": "no chunks", "document_id": document_id}
 
         _bootstrap_constraint()
-        extraction = asyncio.run(_extract(texts))
+        extraction = asyncio.run(_extract(texts, ml_gateway_url))
         nodes_written = _write_graph(
             extraction["entities"], extraction["relationships"], document_id
         )

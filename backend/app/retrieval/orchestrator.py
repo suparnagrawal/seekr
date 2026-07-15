@@ -5,8 +5,9 @@ from backend.app.retrieval.interfaces import SearchQuery
 from backend.app.retrieval.context import ContextAssembler
 from backend.app.retrieval.pipeline import DefaultRetrievalPipeline
 from backend.app.retrieval.fusion import ReciprocalRankFusion
+from backend.app.retrieval.reranking import MetadataReranker
 from backend.app.retrieval.retrievers.dense import DenseRetriever
-from backend.app.retrieval.retrievers.keyword import KeywordRetriever
+from backend.app.retrieval.retrievers.keyword import LexicalRetriever
 from backend.app.retrieval.retrievers.graph import GraphRetriever
 from backend.shared.services.embedding_service import get_embedding_service
 from backend.shared.config import settings
@@ -22,21 +23,29 @@ def get_context_assembler() -> ContextAssembler:
 def get_fusion_strategy() -> ReciprocalRankFusion:
     return ReciprocalRankFusion()
 
+_pipeline: Optional[DefaultRetrievalPipeline] = None
+
 def get_retrieval_pipeline() -> DefaultRetrievalPipeline:
-    # Three-pathway fusion: dense (Qdrant), graph (Neo4j traversal), and lexical
-    # (Postgres FTS). The lexical pathway restores exact-match recall for tags,
-    # part numbers, and error codes that dense retrieval underperforms on. It is
-    # fail-soft (BaseRetriever wraps it), so an absent `chunks.fts` column yields
-    # an empty contribution rather than an error.
+    global _pipeline
+    if _pipeline is not None:
+        return _pipeline
+        
+    # Three-pathway fusion: dense (Qdrant vector), graph (Neo4j traversal),
+    # and lexical (Qdrant text-match). The lexical pathway restores exact-match
+    # recall for tags, part numbers, and error codes that dense retrieval
+    # underperforms on. It is fail-soft (BaseRetriever wraps it), so an error
+    # yields an empty contribution rather than a pipeline failure.
     retrievers: list = [DenseRetriever(), GraphRetriever()]
     if settings.RETRIEVAL_ENABLE_KEYWORD:
-        retrievers.append(KeywordRetriever())
+        retrievers.append(LexicalRetriever())
 
-    return DefaultRetrievalPipeline(
+    _pipeline = DefaultRetrievalPipeline(
         retrievers=retrievers,
         fusion_strategy=get_fusion_strategy(),
-        context_assembler=get_context_assembler()
+        context_assembler=get_context_assembler(),
+        reranker=MetadataReranker()
     )
+    return _pipeline
 
 # Public retrieval interface consumed by P3.
 async def retrieve(
@@ -53,9 +62,22 @@ async def retrieve(
     pipeline = get_retrieval_pipeline()
     result = await pipeline.run(search_query)
     
+    from backend.app.retrieval.models import Citation
+
     # Bridging the new RetrievalResult to the older RetrievalContext structure used by callers
     return RetrievalContext(
         chunks=result.chunks,
+        citations=[
+            Citation(
+                doc_id=chunk.payload.get("document_id", "unknown"),
+                filename=chunk.payload.get("filename", "unknown"),
+                passage_id=chunk.chunk_id,
+                chunk_index=chunk.payload.get("chunk_index", 0),
+                page_numbers=chunk.payload.get("page_numbers", []),
+                headings=chunk.payload.get("headings", [])
+            )
+            for chunk in result.chunks
+        ],
         metadata={
             "query_type": result.diagnostics.get("query_type"),
             "timings": result.timings,

@@ -55,7 +55,7 @@ export async function checkLiveness(): Promise<{ status: string }> {
 // Document upload (real /upload endpoint)
 // ---------------------------------------------------------------------------
 
-export async function uploadDocument(file: File): Promise<{ document_id: string; job_id: string; status: string }> {
+export async function uploadDocument(file: File, mlGatewayUrl?: string): Promise<{ document_id: string; job_id: string; status: string }> {
   const maxBytes = config.maxUploadMb * 1024 * 1024;
   if (file.size > maxBytes) {
     throw new Error(`File exceeds the ${config.maxUploadMb} MB upload limit.`);
@@ -63,6 +63,9 @@ export async function uploadDocument(file: File): Promise<{ document_id: string;
 
   const form = new FormData();
   form.append('file', file);
+  if (mlGatewayUrl) {
+    form.append('ml_gateway_url', mlGatewayUrl);
+  }
 
   const res = await fetch(`${API_V1}/upload`, {
     method: 'POST',
@@ -77,8 +80,13 @@ export async function uploadDocument(file: File): Promise<{ document_id: string;
   return res.json();
 }
 
-export async function retryDocument(documentId: string): Promise<{ document_id: string; job_id: string; status: string }> {
-  const res = await fetch(`${API_V1}/retry/${encodeURIComponent(documentId)}`, {
+export async function retryDocument(documentId: string, mlGatewayUrl?: string): Promise<{ document_id: string; job_id: string; status: string }> {
+  const url = new URL(`${API_V1}/retry/${encodeURIComponent(documentId)}`, window.location.origin);
+  if (mlGatewayUrl) {
+    url.searchParams.append('ml_gateway_url', mlGatewayUrl);
+  }
+
+  const res = await fetch(url.toString(), {
     method: 'POST',
     headers: authHeaders(),
   });
@@ -139,7 +147,7 @@ export async function fetchGraph(tag: string, depth: number = config.defaultGrap
 
 export interface SSECallbacks {
   onToken: (text: string) => void;
-  onCitation: (citation: { doc_id: string; passage_id: string; page: number | null }) => void;
+  onCitation: (citation: { doc_id: string; filename: string; passage_id: string; chunk_index: number; page_numbers: number[]; headings: string[]; page: number | null }) => void;
   onAgentTrigger: (trigger: { worker: string; job_id: string }) => void;
   onReasoning: (content: string) => void;
   onToolCall: (toolName: string, toolArgs: Record<string, unknown>) => void;

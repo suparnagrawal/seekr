@@ -32,6 +32,14 @@ async def execute_graph_query_tool(
     tag = state.focused_tag or "unknown"
     graph_context_text = ""
 
+    # Check if retrieval_context already has graph chunks from the Copilot pipeline
+    if state.retrieval_context.get("chunks"):
+        graph_chunks = [c for c in state.retrieval_context["chunks"] if c.get("source") == "graph"]
+        if graph_chunks:
+            graph_context_text = "\n\n".join([c.get("text", "") for c in graph_chunks])
+            yield "", graph_context_text
+            return
+
     yield emit_tool_call(
         tool_name="context_graph_query",
         tool_args={"tag": tag, "depth": depth},
@@ -85,6 +93,10 @@ async def stream_generation_and_citations(
     for citation in state.citations:
         yield emit_citation(
             doc_id=citation.get("doc_id", ""),
+            filename=citation.get("filename", ""),
             passage_id=citation.get("passage_id", ""),
+            chunk_index=citation.get("chunk_index", 0),
+            page_numbers=citation.get("page_numbers", []),
+            headings=citation.get("headings", []),
             page=citation.get("page"),
         )

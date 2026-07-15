@@ -32,6 +32,7 @@ class StructlogRequestMiddleware(BaseHTTPMiddleware):
             # Attach timing and request_id to response headers
             response.headers["X-Process-Time"] = str(process_time)
             response.headers["X-Request-ID"] = request_id
+            response.headers["X-Correlation-ID"] = request_id
             
             structlog.contextvars.bind_contextvars(status_code=response.status_code)
             logger.info("Request processed", duration_sec=round(process_time, 4))

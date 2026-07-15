@@ -1,12 +1,13 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Layers, Minus, Plus } from 'lucide-react';
+import { Layers, Minus, Plus, Search } from 'lucide-react';
 import { getNodeColor } from '@/lib/utils';
 
 interface GraphControlsProps {
   depth: number;
   onDepthChange: (depth: number) => void;
+  onSearch?: (tag: string) => void;
 }
 
 const LEGEND = [
@@ -18,13 +19,29 @@ const LEGEND = [
   { type: 'failure_mode', label: 'Failure' },
 ];
 
-export function GraphControls({ depth, onDepthChange }: GraphControlsProps) {
+export function GraphControls({ depth, onDepthChange, onSearch }: GraphControlsProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       className="absolute top-4 right-4 z-10 hud rounded-md px-3 py-2 flex flex-col gap-2 max-w-[240px]"
     >
+      <form 
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          const val = fd.get('tag') as string;
+          if (val && onSearch) onSearch(val);
+        }}
+        className="relative flex items-center mb-1"
+      >
+        <Search className="absolute left-2 w-3 h-3 text-white/40" />
+        <input 
+          name="tag"
+          placeholder="Search entity tag..."
+          className="w-full bg-black/50 border border-white/10 rounded-sm pl-6 pr-2 py-1 text-xs text-white focus:outline-none focus:border-signal/50 font-mono transition-colors"
+        />
+      </form>
       <div className="flex items-center gap-2">
         <Layers className="w-3.5 h-3.5 text-signal" />
         <span className="font-mono text-[0.62rem] uppercase tracking-wider hud-text">Traversal depth</span>

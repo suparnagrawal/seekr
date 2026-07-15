@@ -14,26 +14,45 @@ Supported event types:
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
+__all__ = [
+    "emit_token",
+    "emit_citation",
+    "emit_agent_trigger",
+    "emit_reasoning",
+    "emit_tool_call",
+    "emit_tool_result",
+    "emit_error",
+    "emit_done",
+]
 
 def _format_sse(event: str, data: Dict[str, Any]) -> str:
     """Format a single SSE frame with the given event name and JSON payload."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
-
 def emit_token(text: str) -> str:
     """Emit a token event containing a chunk of generated text."""
     return _format_sse("token", {"text": text})
 
-
 def emit_citation(
     doc_id: str,
+    filename: str,
     passage_id: str,
+    chunk_index: int,
+    page_numbers: List[int],
+    headings: List[str],
     page: Optional[int] = None,
 ) -> str:
     """Emit a citation event referencing a source passage."""
-    payload: Dict[str, Any] = {"doc_id": doc_id, "passage_id": passage_id}
+    payload: Dict[str, Any] = {
+        "doc_id": doc_id,
+        "filename": filename,
+        "passage_id": passage_id,
+        "chunk_index": chunk_index,
+        "page_numbers": page_numbers,
+        "headings": headings,
+    }
     if page is not None:
         payload["page"] = page
     return _format_sse("citation", payload)

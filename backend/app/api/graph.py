@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Query
 
-from backend.shared.neo4j_client import neo4j_driver
+from backend.shared.neo4j_client import get_neo4j_async
 from backend.app.schemas.graph import GraphNode, GraphEdge, GraphResponse
 from backend.app.agents.shared.logging import get_logger, log_error
 
@@ -79,27 +79,30 @@ async def get_graph(
     """
 
     try:
-        async with neo4j_driver.session() as session:
+        driver = get_neo4j_async()
+        async with driver.session() as session:
             # Check if the requested tag exists
             check_result = await session.run("MATCH (n {tag: $tag}) RETURN count(n) AS cnt", tag=tag)
             record = await check_result.single()
             
             actual_tag = tag
             if record and record["cnt"] == 0:
-                # Pick an arbitrary node with a tag (preferably one with relationships)
-                rand_result = await session.run("MATCH (n)-[]-() WHERE n.tag IS NOT NULL RETURN n.tag AS tag LIMIT 1")
-                rand_record = await rand_result.single()
-                if rand_record:
-                    actual_tag = rand_record["tag"]
+                # Fallback to the highest-degree node in the entire graph
+                hub_result = await session.run("""
+                    MATCH (n)
+                    WHERE n.tag IS NOT NULL
+                    OPTIONAL MATCH (n)-[r]-()
+                    WITH n, count(r) AS degree
+                    ORDER BY degree DESC, n.tag ASC
+                    LIMIT 1
+                    RETURN n.tag AS tag
+                """)
+                hub_record = await hub_result.single()
+                if hub_record:
+                    actual_tag = hub_record["tag"]
                 else:
-                    # Fallback to any node if no connected nodes exist
-                    rand_result2 = await session.run("MATCH (n) WHERE n.tag IS NOT NULL RETURN n.tag AS tag LIMIT 1")
-                    rand_record2 = await rand_result2.single()
-                    if rand_record2:
-                        actual_tag = rand_record2["tag"]
-                    else:
-                        # Graph is completely empty
-                        return GraphResponse(center=tag, nodes=[], edges=[])
+                    # Graph is completely empty
+                    return GraphResponse(center=tag, nodes=[], edges=[])
 
             node_result = await session.run(nodes_query, tag=actual_tag)
             node_records = await node_result.data()

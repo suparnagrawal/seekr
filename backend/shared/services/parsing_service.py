@@ -33,11 +33,12 @@ class ParsingService:
     Handles OCR fallbacks and structured Markdown generation.
     """
     
-    def __init__(self, parser_config: dict[str, Any] | None = None):
+    def __init__(self, parser_config: dict[str, Any] | None = None, ml_gateway_url: str | None = None):
         """
         Initializes the service with injectable configuration.
         """
         self._converter = None
+        self.ml_gateway_url = ml_gateway_url
         self._config = parser_config or {
             "do_ocr": True,
             "do_table_structure": True,
@@ -96,8 +97,14 @@ class ParsingService:
         try:
             from backend.shared.config import settings
             
-            if settings.REMOTE_PARSER_URL:
-                logger.info("Offloading Docling parsing to remote gateway", remote_url=settings.REMOTE_PARSER_URL)
+            target_url = None
+            if self.ml_gateway_url:
+                target_url = self.ml_gateway_url.rstrip('/') + '/parse'
+            elif settings.REMOTE_PARSER_URL:
+                target_url = settings.REMOTE_PARSER_URL
+
+            if target_url:
+                logger.info("Offloading Docling parsing to remote gateway", remote_url=target_url)
                 import httpx
                 
                 @retry(
@@ -112,7 +119,7 @@ class ParsingService:
                         files = {"file": (path.name, f, "application/pdf")}
                         # We give the remote API up to 5 minutes to parse a large document
                         resp = httpx.post(
-                            settings.REMOTE_PARSER_URL,
+                            target_url,
                             files=files,
                             headers={"ngrok-skip-browser-warning": "1"},
                             timeout=300.0
