@@ -17,10 +17,22 @@ from backend.shared.models.document import Document  # noqa: F401
 
 def reset_postgres():
     print("Resetting PostgreSQL database...")
-    # Drop all tables and recreate them
-    Base.metadata.drop_all(bind=engine)
+    import subprocess
+    import os
+    
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Downgrade all migrations to drop tables cleanly
+    print("Downgrading all Alembic migrations...")
+    subprocess.run(["alembic", "downgrade", "base"], cwd=backend_dir, check=True)
     print("Dropped PostgreSQL tables.")
-    Base.metadata.create_all(bind=engine)
+    
+    # Recreate using Alembic migrations
+    # This ensures the alembic_version table is correctly initialized
+    print("Recreating PostgreSQL tables via Alembic...")
+    
+    # Run alembic upgrade head in the backend directory
+    subprocess.run(["alembic", "upgrade", "head"], cwd=backend_dir, check=True)
     print("Recreated PostgreSQL tables.")
 
 
