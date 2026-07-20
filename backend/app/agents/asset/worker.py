@@ -4,10 +4,11 @@ Asset worker implementation.
 
 from __future__ import annotations
 
+import json
 from typing import AsyncIterator
 
 from backend.app.agents.shared.state import AgentState
-from backend.app.agents.shared.streaming import emit_reasoning, emit_error
+from backend.app.agents.shared.streaming import emit_reasoning, emit_error, emit_tool_call, emit_tool_result
 from backend.app.agents.shared.logging import get_logger, log_error
 from backend.app.agents.shared.worker_utils import (
     execute_graph_query_tool,
@@ -15,6 +16,7 @@ from backend.app.agents.shared.worker_utils import (
     stream_generation_and_citations,
 )
 from backend.app.agents.asset.prompts import build_asset_messages
+from backend.app.agents.asset.cgfr_service import classify_intent, run_cgfr_pipeline
 
 logger = get_logger("asset.worker")
 
@@ -24,15 +26,24 @@ async def run(state: AgentState) -> AsyncIterator[str]:
     Execute the Asset worker logic.
     """
     try:
-        yield emit_reasoning("Asset worker analyzing request...")
+        intent = await classify_intent(state.query)
+        
+        if intent == "cgfr":
+            graph_context_text = ""
+            async for event, text in run_cgfr_pipeline(state):
+                if event:
+                    yield event
+                if text:
+                    graph_context_text = text
 
-        graph_context_text = ""
-
-        # Tool call: context_graph_query
-        async for event, text in execute_graph_query_tool(state, "shallow", logger):
-            if event:
-                yield event
-            graph_context_text = text
+        else:
+            yield emit_reasoning("Asset worker analyzing asset history and context...")
+            graph_context_text = ""
+            # Tool call: context_graph_query
+            async for event, text in execute_graph_query_tool(state, "shallow", logger):
+                if event:
+                    yield event
+                graph_context_text = text
 
         yield emit_reasoning("Synthesizing information and generating response...")
 
@@ -45,3 +56,4 @@ async def run(state: AgentState) -> AsyncIterator[str]:
     except Exception as exc:
         log_error(logger, str(exc), session_id=state.session_id, exc_info=True)
         yield emit_error(str(exc))
+

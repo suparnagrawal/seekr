@@ -89,31 +89,62 @@ async def run_query(
 
         draft_answer = "".join(draft_parts)
 
-        # Persist the current exchange to session history for continuity
-        await _persist_session_history(session_id, query, draft_answer)
-
-        # --- Step 3: Extract referenced citations ---
+        # --- Step 3: Extract and Validate Citations ---
         import re
-        referenced_citations = set()
-        # Parse [Filename, ..., Chunk Y] format in a robust way
-        for bracket_content in re.findall(r"\[(.*?)\]", draft_answer):
-            chunk_match = re.search(r"chunk\s*(\d+)", bracket_content, re.IGNORECASE)
-            if not chunk_match:
-                continue
-            chunk_idx = int(chunk_match.group(1))
-            
-            parts = [p.strip() for p in bracket_content.split(",")]
-            filename = ""
-            # Try to find a part with a file extension, otherwise use the first part
-            for p in parts:
-                if "." in p and len(p.split(".")[-1]) in (2, 3, 4):
-                    filename = p
-                    break
-            if not filename and parts:
-                filename = parts[0]
+        
+        def extract_citations(text: str) -> set[tuple[str, int]]:
+            extracted = set()
+            for bracket_content in re.findall(r"\[(.*?)\]", text):
+                chunk_match = re.search(r"chunk\s*(\d+)", bracket_content, re.IGNORECASE)
+                if not chunk_match:
+                    continue
+                chunk_idx = int(chunk_match.group(1))
                 
-            if filename:
-                referenced_citations.add((filename, chunk_idx))
+                parts = [p.strip() for p in bracket_content.split(",")]
+                filename = ""
+                for p in parts:
+                    if "." in p and len(p.split(".")[-1]) in (2, 3, 4):
+                        filename = p
+                        break
+                if not filename and parts:
+                    filename = parts[0]
+                    
+                if filename:
+                    extracted.add((filename, chunk_idx))
+            return extracted
+
+        referenced_citations = extract_citations(draft_answer)
+        
+        # Valid citations from context
+        valid_context_keys = set()
+        for chunk in retrieval_ctx.chunks:
+            fname = chunk.payload.get("filename", "")
+            idx = chunk.payload.get("chunk_index")
+            if fname and idx is not None:
+                valid_context_keys.add((fname, int(idx)))
+                
+        invalid_citations = [f"[{f}, Chunk {i}]" for (f, i) in referenced_citations if (f, i) not in valid_context_keys]
+        
+        if invalid_citations:
+            logger.warning("invalid_citations_detected", invalid=invalid_citations)
+            yield emit_token("\n\n*(Self-Correction: I noticed I generated citations that were not present in the retrieved context. Let me correct that.)*\n\n")
+            
+            # Regeneration attempt
+            correction_messages = messages + [
+                {"role": "assistant", "content": draft_answer},
+                {"role": "user", "content": f"You included these invalid citations: {', '.join(invalid_citations)}. They are NOT in the context. Please regenerate your answer using ONLY the facts and citations explicitly provided in the context."}
+            ]
+            
+            draft_parts = []
+            async for token_text in generate_streaming(correction_messages):
+                draft_parts.append(token_text)
+                yield emit_token(token_text)
+                
+            draft_answer = "".join(draft_parts)
+            referenced_citations = extract_citations(draft_answer)
+
+        # Persist the finalized exchange to session history for continuity
+        await _persist_session_history(session_id, query, draft_answer)
 
         MAX_FALLBACK_CITATIONS = 4
         if not referenced_citations:

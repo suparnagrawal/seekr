@@ -9,8 +9,8 @@ def test_rrf_empty_groups():
 
 def test_rrf_single_group():
     fusion = ReciprocalRankFusion(k=60)
-    c1 = Chunk(chunk_id="1", text="text1", score=1.0, source="dense")
-    c2 = Chunk(chunk_id="2", text="text2", score=0.9, source="dense")
+    c1 = Chunk(chunk_id="1", text="text1", score=1.0, source="dense", payload={})
+    c2 = Chunk(chunk_id="2", text="text2", score=0.9, source="dense", payload={})
     
     fused = fusion.fuse([[c1, c2]])
     assert len(fused) == 2
@@ -22,11 +22,11 @@ def test_rrf_multiple_groups():
     fusion = ReciprocalRankFusion(k=60)
     
     # c2 appears in both, c1 in first, c3 in second
-    c1 = Chunk(chunk_id="1", text="text1", score=1.0, source="dense")
-    c2 = Chunk(chunk_id="2", text="text2", score=0.9, source="dense")
+    c1 = Chunk(chunk_id="1", text="text1", score=1.0, source="dense", payload={})
+    c2 = Chunk(chunk_id="2", text="text2", score=0.9, source="dense", payload={})
     
-    c2_alt = Chunk(chunk_id="2", text="text2", score=0.8, source="keyword")
-    c3 = Chunk(chunk_id="3", text="text3", score=0.7, source="keyword")
+    c2_alt = Chunk(chunk_id="2", text="text2", score=0.8, source="keyword", payload={})
+    c3 = Chunk(chunk_id="3", text="text3", score=0.7, source="keyword", payload={})
     
     fused = fusion.fuse([[c1, c2], [c2_alt, c3]])
     

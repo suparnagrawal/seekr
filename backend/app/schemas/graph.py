@@ -24,3 +24,18 @@ class GraphResponse(BaseModel):
     center: str
     nodes: List[GraphNode] = Field(default_factory=list)
     edges: List[GraphEdge] = Field(default_factory=list)
+
+
+class EntityFeedbackRequest(BaseModel):
+    """Request body for entity correction/feedback."""
+    description: Optional[str] = Field(None, max_length=2000, description="Updated entity description")
+    entity_type: Optional[str] = Field(None, max_length=128, description="Updated entity type")
+    correction_note: Optional[str] = Field(None, max_length=500, description="Reason for the correction")
+
+
+class EntityFeedbackResponse(BaseModel):
+    tag: str
+    status: str = "updated"
+    previous_description: Optional[str] = None
+    previous_type: Optional[str] = None
+

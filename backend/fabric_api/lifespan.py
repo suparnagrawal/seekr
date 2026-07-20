@@ -57,6 +57,25 @@ async def lifespan(app: FastAPI):
     
     logger.info("Infrastructure clients verified and ready.")
 
+    # Bootstrap Neo4j indexes and constraints for Entity.tag (hot query path).
+    # These are idempotent (IF NOT EXISTS) and only run once per database lifetime.
+    try:
+        from backend.shared.neo4j_client import get_neo4j_async
+        async_driver = get_neo4j_async()
+        async with async_driver.session() as session:
+            await session.run(
+                "CREATE INDEX entity_tag_idx IF NOT EXISTS FOR (n:Entity) ON (n.tag)"
+            )
+            await session.run(
+                "CREATE INDEX entity_type_idx IF NOT EXISTS FOR (n:Entity) ON (n.type)"
+            )
+            await session.run(
+                "CREATE CONSTRAINT entity_tag_unique IF NOT EXISTS FOR (n:Entity) REQUIRE n.tag IS UNIQUE"
+            )
+        logger.info("Neo4j indexes and constraints bootstrapped.")
+    except Exception as e:
+        logger.warning("Neo4j index bootstrap failed (non-fatal)", error=str(e))
+
     await init_db_pools()
     logger.info("Async database pools initialized.")
 

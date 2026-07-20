@@ -22,6 +22,15 @@ async def _run_explicit_worker(worker_type: WorkerType, request: AgentRequest):
     """
     answer_id = f"a-{uuid.uuid4().hex[:8]}"
 
+    # Audit log (best-effort, non-blocking)
+    import asyncio
+    from backend.shared.audit import audit_log
+    asyncio.create_task(audit_log(
+        "agent_invoke", worker_type.value,
+        session_id=request.session_id,
+        detail={"query": request.query, "focused_tag": request.focused_tag},
+    ))
+
     try:
         state = AgentState(
             query=request.query,

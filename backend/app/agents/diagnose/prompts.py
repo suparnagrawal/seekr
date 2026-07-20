@@ -17,6 +17,7 @@ DIAGNOSE_SYSTEM_PROMPT = (
     "- If the provided context is insufficient, state what information is missing.\n"
     "- Always cite your sources using the [doc_id:passage_id] format.\n"
     "- Provide clear, structured, and professional answers.\n"
+    "- Perform a silent self-critique pass before finalizing the answer to ensure logical consistency and completeness.\n"
 )
 
 

@@ -8,6 +8,8 @@ import { CitationChip } from './citation-chip';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+import { ToolResultRenderer } from './tool-renderer';
+
 interface MessageBubbleProps {
   message: CopilotMessage;
   entityTag: string;
@@ -112,16 +114,25 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         )}
 
         {message.tool_calls && message.tool_calls.length > 0 && (
-          <div className="space-y-1 mt-2">
-            {message.tool_calls.map((call, i) => (
-              <motion.div key={i} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-xs font-mono text-faint flex items-start gap-1.5">
-                <span className="text-signal/70">▶</span>
-                <span className="leading-tight break-all">
-                  {call.name}({JSON.stringify(call.args)})
-                  {call.result ? ` → ${typeof call.result === 'object' ? '{...}' : call.result}` : '...'}
-                </span>
-              </motion.div>
-            ))}
+          <div className="space-y-2 mt-3">
+            {message.tool_calls.map((call, i) => {
+              const callResult: any = call.result;
+
+              return (
+                <div key={i} className="flex flex-col gap-2">
+                  <motion.div initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-xs font-mono text-faint flex items-start gap-1.5">
+                    <span className="text-signal/70">▶</span>
+                    <span className="leading-tight break-all">
+                      {call.name}({JSON.stringify(call.args)})
+                      {callResult ? (
+                        ` → ${callResult.message || (typeof callResult === 'object' ? '{...}' : callResult)}`
+                      ) : '...'}
+                    </span>
+                  </motion.div>
+                  <ToolResultRenderer toolName={call.name} result={callResult} />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

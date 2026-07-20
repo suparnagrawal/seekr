@@ -86,9 +86,58 @@ async def stream_generation_and_citations(
     messages: List[dict],
     state: AgentState,
 ) -> AsyncIterator[str]:
-    """Stream LLM generation and append the state's citations."""
+    """Stream LLM generation, validate citations, regenerate once if hallucinated, and append citations."""
+    draft_parts = []
     async for token_text in generate_streaming(messages):
+        draft_parts.append(token_text)
         yield emit_token(token_text)
+
+    draft_answer = "".join(draft_parts)
+
+    import re
+    def extract_citations(text: str) -> set[tuple[str, int]]:
+        extracted = set()
+        for bracket_content in re.findall(r"\[(.*?)\]", text):
+            chunk_match = re.search(r"chunk\s*(\d+)", bracket_content, re.IGNORECASE)
+            if not chunk_match:
+                continue
+            chunk_idx = int(chunk_match.group(1))
+            
+            parts = [p.strip() for p in bracket_content.split(",")]
+            filename = ""
+            for p in parts:
+                if "." in p and len(p.split(".")[-1]) in (2, 3, 4):
+                    filename = p
+                    break
+            if not filename and parts:
+                filename = parts[0]
+                
+            if filename:
+                extracted.add((filename, chunk_idx))
+        return extracted
+
+    referenced_citations = extract_citations(draft_answer)
+    
+    # Valid citations from state context
+    valid_context_keys = set()
+    for chunk in state.retrieval_context.get("chunks", []):
+        fname = chunk.get("payload", {}).get("filename", "")
+        idx = chunk.get("payload", {}).get("chunk_index")
+        if fname and idx is not None:
+            valid_context_keys.add((fname, int(idx)))
+            
+    invalid_citations = [f"[{f}, Chunk {i}]" for (f, i) in referenced_citations if (f, i) not in valid_context_keys]
+    
+    if invalid_citations:
+        yield emit_token("\n\n*(Self-Correction: I noticed I generated citations that were not present in the retrieved context. Let me correct that.)*\n\n")
+        
+        correction_messages = messages + [
+            {"role": "assistant", "content": draft_answer},
+            {"role": "user", "content": f"You included these invalid citations: {', '.join(invalid_citations)}. They are NOT in the context. Please regenerate your answer using ONLY the facts and citations explicitly provided in the context."}
+        ]
+        
+        async for token_text in generate_streaming(correction_messages):
+            yield emit_token(token_text)
 
     for citation in state.citations:
         yield emit_citation(

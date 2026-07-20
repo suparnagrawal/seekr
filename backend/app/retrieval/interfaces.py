@@ -60,7 +60,7 @@ class BaseRetriever(ABC):
 
 class FusionStrategy(ABC):
     @abstractmethod
-    def fuse(self, results_groups: List[List[Chunk]]) -> List[Chunk]:
+    def fuse(self, results_groups: List[List[Chunk]], context: TraversalContext = None) -> List[Chunk]:
         pass
 
 class RetrievalPipeline(ABC):

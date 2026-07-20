@@ -27,6 +27,15 @@ async def process_query(request: QueryRequest):
     Delegates to the P3 Copilot orchestrator which owns retrieval,
     initial reasoning, trigger evaluation, and escalation.
     """
+    # Audit log (best-effort, non-blocking)
+    from backend.shared.audit import audit_log
+    import asyncio
+    asyncio.create_task(audit_log(
+        "query", "copilot",
+        session_id=request.session_id,
+        detail={"query": request.query, "focused_tag": request.focused_tag},
+    ))
+
     gen = run_query(
         query=request.query,
         session_id=request.session_id,
