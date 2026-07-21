@@ -15,6 +15,7 @@ NEO4J_EDGES = Gauge("seekr_neo4j_edges_total", "Total edges in Neo4j")
 QDRANT_POINTS = Gauge("seekr_qdrant_points_total", "Total points in Qdrant")
 POSTGRES_DOCUMENTS = Gauge("seekr_postgres_documents_total", "Total documents in Postgres")
 POSTGRES_FACTS = Gauge("seekr_postgres_facts_total", "Total facts in Postgres")
+RQ_QUEUE_DEPTH = Gauge("seekr_rq_queue_depth", "Current jobs in RQ queues", ["queue_name"])
 
 @router.get("/metrics")
 async def get_metrics():
@@ -57,6 +58,17 @@ async def get_metrics():
             fact_res = await conn.execute("SELECT count(*) FROM facts")
             fact_count = await fact_res.fetchone()
             if fact_count: POSTGRES_FACTS.set(fact_count[0])
+    except Exception:
+        pass
+        
+    # RQ Queue Metrics
+    try:
+        import redis
+        from rq import Queue
+        r = redis.from_url(settings.redis_url)
+        for q_name in ["ingestion", "failed"]:
+            q = Queue(name=q_name, connection=r)
+            RQ_QUEUE_DEPTH.labels(queue_name=q_name).set(len(q))
     except Exception:
         pass
         

@@ -18,28 +18,85 @@ async def classify_intent(query: str) -> str:
     return "cgfr" if "cgfr" in result.lower() else "history"
 
 async def extract_cgfr_constraints(query: str, focused_tag: str | None) -> dict:
-    """Extract target entity tag, type and constraints for finding candidates."""
+    """Extract target entity tag, type and structured constraints."""
     messages = [
-        {"role": "system", "content": 'Extract the primary target entity tag (if any), the entity type, and any explicitly stated constraints from the query. If the user mentions replacing or comparing to a specific component like "P-101", that is the target_tag. Return strict JSON: {"target_tag": "P-101", "entity_type": "Pump", "constraints": ["must be high pressure"]}'},
+        {"role": "system", "content": 'Extract the primary target entity tag (if any), the entity type, and any explicitly stated constraints from the query. If the user mentions replacing or comparing to a specific component like "P-101", that is the target_tag. For numeric/logical constraints, extract them as rules: {"field": "pressure", "operator": ">", "value": 100}. Return strict JSON: {"target_tag": "P-101", "entity_type": "Pump", "rules": [{"field": "pressure", "operator": ">=", "value": 150}], "narrative_constraints": ["must be durable"]}'},
         {"role": "user", "content": f"Focused tag: {focused_tag}. Query: {query}"}
     ]
     try:
         raw = await generate(messages, temperature=0.0, response_format={"type": "json_object"}, model=settings.FAST_MODEL)
         return json.loads(raw)
     except Exception:
-        return {"target_tag": focused_tag, "entity_type": "Component", "constraints": []}
+        return {"target_tag": focused_tag, "entity_type": "Component", "rules": [], "narrative_constraints": []}
 
-async def evaluate_candidates(target_specs: dict, candidates_specs: dict, constraints: list) -> dict:
-    """Programmatic/LLM Pass/Fail compatibility filtering table generation."""
+import re
+import operator
+
+def _parse_numeric(val) -> float | None:
+    if isinstance(val, (int, float)): return float(val)
+    if isinstance(val, str):
+        matches = re.findall(r'[-+]?\d*\.\d+|\d+', val)
+        if matches: return float(matches[0])
+    return None
+
+def _evaluate_rule(rule: dict, spec: dict) -> bool:
+    field = rule.get("field")
+    op_str = rule.get("operator", "==")
+    target_val = rule.get("value")
+    
+    # We search the spec dictionary keys loosely matching the field
+    spec_val = None
+    if field in spec:
+        spec_val = spec[field]
+    else:
+        for k, v in spec.items():
+            if field.lower() in k.lower():
+                spec_val = v
+                break
+                
+    if spec_val is None:
+        return False
+        
+    v1 = _parse_numeric(spec_val)
+    v2 = _parse_numeric(target_val)
+    
+    if v1 is not None and v2 is not None:
+        ops = {">": operator.gt, ">=": operator.ge, "<": operator.lt, "<=": operator.le, "==": operator.eq, "=": operator.eq, "!=": operator.ne}
+        op_func = ops.get(op_str, operator.eq)
+        try:
+            return op_func(v1, v2)
+        except Exception:
+            return False
+            
+    if op_str in ("==", "="):
+        return str(spec_val).lower() == str(target_val).lower()
+    return False
+
+def programmatic_filter(candidates_specs: dict, rules: list) -> list:
+    evals = []
+    for tag, spec in candidates_specs.items():
+        passed = True
+        failed_rules = []
+        for r in rules:
+            if not _evaluate_rule(r, spec):
+                passed = False
+                failed_rules.append(r)
+        evals.append({"tag": tag, "pass_programmatic": passed, "failed_rules": failed_rules})
+    return evals
+
+async def evaluate_candidates(target_specs: dict, candidates_specs: dict, rules: list, narrative: list) -> dict:
+    """Programmatic rule evaluation + LLM narrative explanation."""
+    prog_evals = programmatic_filter(candidates_specs, rules)
+    
     messages = [
-        {"role": "system", "content": "You are a constraint evaluation engine. Given a target entity's specifications, a list of explicit constraints, and a set of candidate entities with their specifications, evaluate each candidate against the constraints and target specs to determine compatibility. Return strict JSON containing an evaluation table: {\"evaluations\": [{\"tag\": \"Candidate-Tag\", \"pass\": true, \"reasoning\": \"Meets all constraints\"}]}"},
-        {"role": "user", "content": f"Target Specs: {json.dumps(target_specs)}\nConstraints: {json.dumps(constraints)}\nCandidates: {json.dumps(candidates_specs)}"}
+        {"role": "system", "content": "You are a constraint evaluation engine. Review the programmatic Pass/Fail evaluation results and the narrative constraints. Output a final evaluation table with explanations. Return strict JSON: {\"evaluations\": [{\"tag\": \"Candidate-Tag\", \"pass\": true, \"reasoning\": \"Passed programmatic rules and meets narrative ...\"}]}"},
+        {"role": "user", "content": f"Programmatic Eval: {json.dumps(prog_evals)}\nNarrative Constraints: {json.dumps(narrative)}\nCandidates: {json.dumps(candidates_specs)}"}
     ]
     try:
         raw = await generate(messages, temperature=0.0, response_format={"type": "json_object"}, model=settings.FAST_MODEL)
         return json.loads(raw)
     except Exception:
-        return {"evaluations": []}
+        return {"evaluations": prog_evals}
 
 async def run_cgfr_pipeline(state: AgentState) -> AsyncIterator[Tuple[str, str]]:
     """Execute the Deep CGFR pipeline: Retrieve target -> specs -> constraints -> candidates -> filter -> Pass/Fail table -> LLM synthesis."""
@@ -48,8 +105,9 @@ async def run_cgfr_pipeline(state: AgentState) -> AsyncIterator[Tuple[str, str]]
     constraints_data = await extract_cgfr_constraints(state.query, state.focused_tag)
     target_tag = constraints_data.get("target_tag") or state.focused_tag
     entity_type = constraints_data.get("entity_type", "Component")
-    constraints = constraints_data.get("constraints", [])
-    yield emit_reasoning(f"Extracted target '{target_tag}', type '{entity_type}', and {len(constraints)} constraints."), ""
+    rules = constraints_data.get("rules", [])
+    narrative = constraints_data.get("narrative_constraints", [])
+    yield emit_reasoning(f"Extracted target '{target_tag}', type '{entity_type}', with {len(rules)} programmatic rules and {len(narrative)} narrative constraints."), ""
     
     target_specs = {}
     if target_tag:
@@ -73,14 +131,15 @@ async def run_cgfr_pipeline(state: AgentState) -> AsyncIterator[Tuple[str, str]]
         candidates_data = await compare_specs(tags)
         yield emit_tool_result("compare_specs", {"message": f"Retrieved specs for {len(tags)} candidate entities."}), ""
         
-        yield emit_reasoning("Evaluating candidates against constraints and target specifications to generate Pass/Fail table..."), ""
-        eval_table = await evaluate_candidates(target_specs, candidates_data, constraints)
+        yield emit_reasoning("Evaluating candidates programmatically against numeric rules, and synthesizing narrative context..."), ""
+        eval_table = await evaluate_candidates(target_specs, candidates_data, rules, narrative)
         
         # Combine everything for the final LLM synthesis
         synthesis_context = {
             "target": target_specs,
             "candidates": candidates_data,
-            "constraints_evaluated": constraints,
+            "rules_evaluated": rules,
+            "narrative_evaluated": narrative,
             "evaluation_table": eval_table.get("evaluations", [])
         }
         

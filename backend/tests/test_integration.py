@@ -51,3 +51,32 @@ async def test_agent_query(client):
             assert response.status_code in (200, 404, 500)
     except Exception:
         pass
+
+@pytest.mark.asyncio
+async def test_unauthorized_request(client, monkeypatch):
+    """Test that unauthorized requests fail when ENABLE_AUTH is true."""
+    monkeypatch.setenv("ENABLE_AUTH", "true")
+    # A request with no auth token
+    response = await client.delete(f"{BASE_URL}/documents/{uuid.uuid4()}")
+    assert response.status_code == 401
+
+@pytest.mark.asyncio
+async def test_invalid_jwt(client, monkeypatch):
+    """Test that an invalid JWT fails."""
+    monkeypatch.setenv("ENABLE_AUTH", "true")
+    monkeypatch.setenv("JWT_AUDIENCE", "test")
+    monkeypatch.setenv("JWKS_URL", "https://test/.well-known/jwks.json")
+    response = await client.delete(
+        f"{BASE_URL}/documents/{uuid.uuid4()}",
+        headers={"Authorization": "Bearer not-a-real-jwt"}
+    )
+    # The PyJWKClient will fail to fetch keys or it will be invalid token
+    assert response.status_code in (401, 500)
+    
+@pytest.mark.asyncio
+async def test_invalid_citation_regeneration(client):
+    """Test citation regeneration gracefully handles invalid fact_id."""
+    payload = {"fact_id": "non-existent-fact-id", "question": "test"}
+    # Usually this would return 404 or an empty state, not crash
+    response = await client.post(f"{BASE_URL}/citations/regenerate", json=payload)
+    assert response.status_code in (404, 200, 422)
