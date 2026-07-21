@@ -20,6 +20,8 @@ from backend.shared.exceptions import (
     DuplicateResourceError,
     InfrastructureError
 )
+from sqlalchemy.exc import IntegrityError
+from backend.shared.models.document import DocumentStatus, GraphJobStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -78,8 +80,6 @@ class UploadService:
             raise DuplicateResourceError(f"Document with SHA256 {sha256} already exists.")
             
         # 6. Database Insert (Commit as UPLOADED)
-        from backend.shared.models.document import DocumentStatus
-        from sqlalchemy.exc import IntegrityError
         
         document = self.repo.create(
             id=document_id,
@@ -155,7 +155,6 @@ class UploadService:
         """
         Retries a failed upload by resetting its state and re-enqueueing the processing job.
         """
-        from backend.shared.models.document import DocumentStatus, GraphJobStatus
         
         doc = self.repo.get_by_id(document_id)
         if not doc:
@@ -189,7 +188,6 @@ class UploadService:
         """
         Cancels any running or queued jobs for a document and marks it as FAILED.
         """
-        from backend.shared.models.document import DocumentStatus
         
         doc = self.repo.get_by_id(document_id)
         if not doc:

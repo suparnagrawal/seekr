@@ -26,3 +26,11 @@ ROLE_TECHNICIAN = "Technician"
 ROLE_ENGINEER = "Engineer"
 ROLE_COMPLIANCE_OFFICER = "Compliance Officer"
 ROLE_ADMIN = "Admin"
+
+# External API Utilities
+NGROK_HEADERS = {"ngrok-skip-browser-warning": "1"}
+
+def resolve_gateway_url(ml_gateway_url: str | None, path: str) -> str | None:
+    if not ml_gateway_url:
+        return None
+    return ml_gateway_url.rstrip('/') + (path if path.startswith('/') else '/' + path)

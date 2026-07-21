@@ -87,38 +87,17 @@ async def _classify_query_with_fallback(query: str) -> QueryType:
 
 
 async def _embed_with_fallback(text: str, embedding_service=None) -> List[float]:
-    fast_model_api_key = settings.fast_model_api_key
-    if settings.EMBEDDING_MODEL_ENDPOINT:
-        try:
-            client = AsyncOpenAI(
-                api_key=fast_model_api_key or "dummy",
-                base_url=settings.EMBEDDING_MODEL_ENDPOINT,
-                timeout=httpx.Timeout(settings.LLM_TIMEOUT, connect=60.0),
-                default_headers={"ngrok-skip-browser-warning": "1"}
-            )
-            response = await client.embeddings.create(model=settings.EMBEDDING_MODEL, input=[text])
-            return response.data[0].embedding
-        except Exception:
-            logger.warning("Custom embedding endpoint failed; trying fallback")
-
-    if fast_model_api_key and fast_model_api_key != "<replace_with_your_api_key>":
-        try:
-            client = AsyncOpenAI(api_key=fast_model_api_key, timeout=httpx.Timeout(settings.LLM_TIMEOUT, connect=60.0))
-            response = await client.embeddings.create(model="text-embedding-3-small", input=[text])
-            return response.data[0].embedding
-        except Exception:
-            logger.warning("OpenAI embeddings failed; trying local embedding service")
-
+    if embedding_service is None:
+        from backend.shared.services.embedding_service import get_embedding_service
+        embedding_service = get_embedding_service()
+        
     try:
-        service = embedding_service
-        if service is None:
-            from backend.shared.services.embedding_service import get_embedding_service
-
-            service = get_embedding_service()
-        vectors = service.embed_batch([text])
+        import asyncio
+        # Run the synchronous embed_batch in a thread pool to avoid blocking the event loop
+        vectors = await asyncio.to_thread(embedding_service.embed_batch, [text])
         return vectors[0]
     except Exception as e:
-        logger.error("all_embedding_backends_failed", query_text=text[:100], error=str(e))
+        logger.error("embedding_failed", query_text=text[:100], error=str(e))
         return [0.0] * settings.EMBEDDING_DIMENSION
 
 class ContextAssembler:

@@ -176,9 +176,8 @@ async def _extract_window(chunk_texts: List[str], ml_gateway_url: str | None = N
     ]
     logger.info("graph_extraction_window_llm_call", prompt_length=len(joined), chunks=len(chunk_texts))
     
-    target_base_url = None
-    if ml_gateway_url:
-        target_base_url = ml_gateway_url.rstrip('/') + '/v1'
+    from backend.shared.constants import resolve_gateway_url
+    target_base_url = resolve_gateway_url(ml_gateway_url, '/v1') if ml_gateway_url else None
         
     raw = await generate(
         messages,
@@ -294,6 +293,7 @@ def _write_graph(
     entities: List[Dict[str, Any]],
     relationships: List[Dict[str, Any]],
     document_id: str,
+    repo: DocumentRepository,
 ) -> int:
     """Write validated entities/relationships to Neo4j. Returns nodes written.
 
@@ -386,47 +386,43 @@ def _write_graph(
                     model=settings.FAST_MODEL,
                 )
 
-    from backend.shared.database import SessionLocal
-    from backend.shared.models.fact import Fact
-    import uuid
-
     # Write Entities as Facts (type and description) and Relationships as Facts
     try:
-        with SessionLocal() as pg_session:
-            doc_uuid = uuid.UUID(document_id)
-            for node in valid_nodes:
-                if node.get("type"):
-                    pg_session.merge(Fact(
-                        id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|is_a|{node['type']}"),
-                        subject_tag=node["tag"],
-                        predicate="is_a",
-                        object_value=node["type"],
-                        extraction_method="llm",
-                        source_doc_id=doc_uuid
-                    ))
-                if node.get("description"):
-                    pg_session.merge(Fact(
-                        id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|has_description|{hash(node['description'])}"),
-                        subject_tag=node["tag"],
-                        predicate="has_description",
-                        object_value=node["description"],
-                        extraction_method="llm",
-                        source_doc_id=doc_uuid
-                    ))
+        pg_session = repo.db
+        doc_uuid = uuid.UUID(document_id)
+        for node in valid_nodes:
+            if node.get("type"):
+                pg_session.merge(Fact(
+                    id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|is_a|{node['type']}"),
+                    subject_tag=node["tag"],
+                    predicate="is_a",
+                    object_value=node["type"],
+                    extraction_method="llm",
+                    source_doc_id=doc_uuid
+                ))
+            if node.get("description"):
+                pg_session.merge(Fact(
+                    id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|has_description|{hash(node['description'])}"),
+                    subject_tag=node["tag"],
+                    predicate="has_description",
+                    object_value=node["description"],
+                    extraction_method="llm",
+                    source_doc_id=doc_uuid
+                ))
+        
+        for r_type, r_list in rels_by_type.items():
+            for rel in r_list:
+                pg_session.merge(Fact(
+                    id=uuid.UUID(rel["fact_id"]),
+                    subject_tag=rel["source"],
+                    predicate=r_type,
+                    object_tag=rel["target"],
+                    object_value=rel.get("description"),
+                    confidence=rel.get("confidence", 1.0),
+                    extraction_method="llm",
+                    source_doc_id=doc_uuid
+                ))
             
-            for r_type, r_list in rels_by_type.items():
-                for rel in r_list:
-                    pg_session.merge(Fact(
-                        id=uuid.UUID(rel["fact_id"]),
-                        subject_tag=rel["source"],
-                        predicate=r_type,
-                        object_tag=rel["target"],
-                        object_value=rel.get("description"),
-                        confidence=rel.get("confidence", 1.0),
-                        extraction_method="llm",
-                        source_doc_id=doc_uuid
-                    ))
-            pg_session.commit()
     except Exception as e:
         logger.error("Failed to populate PostgreSQL Facts", error=str(e), exc_info=True)
 
@@ -474,64 +470,59 @@ def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Di
     over the whole document (windowed), and writes them to Neo4j. Participates
     in the document status state machine on every exit path.
     """
-    if not settings.GRAPH_EXTRACTION_ENABLED:
-        logger.info("graph_extraction_disabled", document_id=document_id)
-        with SessionLocal() as db:
-            repo = DocumentRepository(db)
+    with SessionLocal() as db:
+        repo = DocumentRepository(db)
+        
+        if not settings.GRAPH_EXTRACTION_ENABLED:
+            logger.info("graph_extraction_disabled", document_id=document_id)
             repo.mark_graph_skipped(document_id)
             repo.db.commit()
-        return {"status": "skipped", "document_id": document_id}
+            return {"status": "skipped", "document_id": document_id}
 
-    logger.info("Starting graph extraction job", document_id=document_id)
+        logger.info("Starting graph extraction job", document_id=document_id)
 
-    try:
-        texts = _load_chunk_texts(document_id)
-        if not texts:
-            logger.warning("no_chunks_for_graph_extraction", document_id=document_id)
-            with SessionLocal() as db:
-                repo = DocumentRepository(db)
+        try:
+            texts = _load_chunk_texts(document_id)
+            if not texts:
+                logger.warning("no_chunks_for_graph_extraction", document_id=document_id)
                 repo.mark_graph_skipped(document_id)
                 repo.db.commit()
-            return {"status": "skipped", "reason": "no chunks", "document_id": document_id}
+                return {"status": "skipped", "reason": "no chunks", "document_id": document_id}
 
-        _bootstrap_constraint()
-        extraction = asyncio.run(_extract(texts, ml_gateway_url))
-        nodes_written = _write_graph(
-            extraction["entities"], extraction["relationships"], document_id
-        )
+            _bootstrap_constraint()
+            extraction = asyncio.run(_extract(texts, ml_gateway_url))
+            nodes_written = _write_graph(
+                extraction["entities"], extraction["relationships"], document_id, repo
+            )
 
-        with SessionLocal() as db:
-            repo = DocumentRepository(db)
             repo.mark_graph_built(document_id, datetime.now(timezone.utc))
             repo.db.commit()
 
-        logger.info(
-            "Graph extraction completed",
-            document_id=document_id,
-            chunks_used=len(texts),
-            windows=len(_window(texts, settings.GRAPH_EXTRACTION_WINDOW)),
-            entities=len(extraction["entities"]),
-            relationships=len(extraction["relationships"]),
-            nodes_written=nodes_written,
-        )
-        return {
-            "status": "success",
-            "document_id": document_id,
-            "nodes": nodes_written,
-            "relationships": len(extraction["relationships"]),
-        }
+            logger.info(
+                "Graph extraction completed",
+                document_id=document_id,
+                chunks_used=len(texts),
+                windows=len(_window(texts, settings.GRAPH_EXTRACTION_WINDOW)),
+                entities=len(extraction["entities"]),
+                relationships=len(extraction["relationships"]),
+                nodes_written=nodes_written,
+            )
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "nodes": nodes_written,
+                "relationships": len(extraction["relationships"]),
+            }
 
-    except Exception as exc:
-        logger.error("Graph extraction failed", document_id=document_id, error=str(exc), exc_info=True)
-        with SessionLocal() as db:
-            repo = DocumentRepository(db)
+        except Exception as exc:
+            logger.error("Graph extraction failed", document_id=document_id, error=str(exc), exc_info=True)
             repo.mark_graph_failed(document_id)
             repo.db.commit()
 
-        # Re-raise so RQ registers the job as failed and the DLQ Auto-Recovery
-        # Daemon can requeue it when the ML Gateway comes back online.
-        from backend.shared.exceptions import IngestionPipelineError
+            # Re-raise so RQ registers the job as failed and the DLQ Auto-Recovery
+            # Daemon can requeue it when the ML Gateway comes back online.
+            from backend.shared.exceptions import IngestionPipelineError
 
-        raise IngestionPipelineError(
-            f"Graph Extraction failed: {str(exc)}", stage="Graph Extraction"
-        ) from exc
+            raise IngestionPipelineError(
+                f"Graph Extraction failed: {str(exc)}", stage="Graph Extraction"
+            ) from exc

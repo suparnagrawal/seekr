@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 import httpx
 
 from backend.shared.config import settings
+from backend.shared.constants import NGROK_HEADERS
 
 _client_cache: Dict[Tuple[str, Optional[str]], AsyncOpenAI] = {}
 
@@ -19,7 +20,7 @@ def get_llm_client(api_key: str, base_url: Optional[str] = None) -> AsyncOpenAI:
             api_key=api_key or "dummy",
             max_retries=settings.LLM_MAX_RETRIES,
             timeout=httpx.Timeout(settings.LLM_TIMEOUT, connect=60.0),
-            default_headers={"ngrok-skip-browser-warning": "1"},
+            default_headers=NGROK_HEADERS,
             **({"base_url": base_url} if base_url else {}),
         )
     return _client_cache[key]

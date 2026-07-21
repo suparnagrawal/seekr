@@ -5,6 +5,7 @@ from rq.registry import FailedJobRegistry
 
 from backend.shared.config import settings
 from backend.shared.redis_client import ingestion_queue
+from backend.shared.constants import NGROK_HEADERS
 
 logger = structlog.get_logger(__name__)
 
@@ -32,7 +33,7 @@ async def dlq_recovery_loop():
                 client = get_http_client()
                 resp = await client.get(
                     f"{settings.LLM_BASE_URL}/models",
-                    headers={"ngrok-skip-browser-warning": "1"}
+                    headers=NGROK_HEADERS
                 )
                 resp.raise_for_status()
                 

@@ -27,8 +27,8 @@ def test_delete_document_not_found():
 @patch("backend.shared.repositories.document_repository.DocumentRepository.get_by_id")
 @patch("backend.shared.repositories.document_repository.DocumentRepository.update_status")
 @patch("backend.shared.repositories.document_repository.DocumentRepository.delete")
-@patch("backend.shared.neo4j_client.neo4j_driver.session")
-@patch("backend.shared.services.qdrant_service.get_qdrant_service")
+@patch("backend.shared.services.cleanup_service.neo4j_driver.session")
+@patch("backend.shared.services.cleanup_service.get_qdrant_service")
 @patch("backend.shared.storage.storage_manager.delete_document_dir")
 def test_delete_document_success(
     mock_delete_dir, mock_get_qdrant, mock_neo4j_session,
@@ -64,7 +64,7 @@ def test_delete_document_success(
     mock_qdrant_instance.delete_by_document_id.assert_called_once_with(doc_id)
 
     # Verify storage cleanup
-    mock_delete_dir.assert_called_once_with(uuid.UUID(doc_id))
+    mock_delete_dir.assert_called_once_with(doc_id)
 
     # Verify hard-delete from Postgres (final step)
     mock_delete.assert_called_once_with(doc_id)
@@ -73,8 +73,8 @@ def test_delete_document_success(
 @patch("backend.shared.repositories.document_repository.DocumentRepository.get_by_id")
 @patch("backend.shared.repositories.document_repository.DocumentRepository.update_status")
 @patch("backend.shared.repositories.document_repository.DocumentRepository.delete")
-@patch("backend.shared.neo4j_client.neo4j_driver.session")
-@patch("backend.shared.services.qdrant_service.get_qdrant_service")
+@patch("backend.shared.services.cleanup_service.neo4j_driver.session")
+@patch("backend.shared.services.cleanup_service.get_qdrant_service")
 @patch("backend.shared.storage.storage_manager.delete_document_dir")
 def test_delete_document_cascade_order(
     mock_delete_dir, mock_get_qdrant, mock_neo4j_session,
