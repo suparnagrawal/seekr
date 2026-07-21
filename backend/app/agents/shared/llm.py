@@ -22,11 +22,18 @@ from backend.shared.config import settings
 
 from backend.shared.llm_clients import get_llm_client
 
-def get_client(base_url_override: str | None = None) -> AsyncOpenAI:
+def get_client(base_url_override: str | None = None, model: str | None = None) -> AsyncOpenAI:
     """Return a shared client to maintain connection pools and Keep-Alive."""
+    api_key = settings.llm_api_key
+    base_url = settings.LLM_BASE_URL
+    
+    if model == settings.FAST_MODEL:
+        api_key = settings.fast_model_api_key
+        base_url = settings.FAST_MODEL_BASE_URL or settings.LLM_BASE_URL
+        
     return get_llm_client(
-        api_key=settings.llm_api_key,
-        base_url=base_url_override or settings.LLM_BASE_URL
+        api_key=api_key,
+        base_url=base_url_override or base_url
     )
 
 
@@ -47,7 +54,7 @@ async def generate_streaming(
     backoff) to survive transient tunnel/network failures. Once the stream
     is established, iteration proceeds without retries.
     """
-    client = get_client()
+    client = get_client(model=model)
 
     # Retry the initial connection with exponential backoff
     last_exc: Optional[Exception] = None
@@ -107,7 +114,7 @@ async def generate(
     if response_format:
         kwargs["response_format"] = response_format
         
-    client = get_client(base_url_override=base_url_override)
+    client = get_client(base_url_override=base_url_override, model=model)
     response = await client.chat.completions.create(
         model=model or settings.LLM_MODEL,
         messages=messages,

@@ -15,7 +15,7 @@ from backend.shared.llm_clients import get_llm_client
 def _get_p2_client() -> AsyncOpenAI:
     return get_llm_client(
         api_key=settings.fast_model_api_key,
-        base_url=settings.LLM_BASE_URL
+        base_url=settings.FAST_MODEL_BASE_URL or settings.LLM_BASE_URL
     )
 
 
