@@ -3,6 +3,7 @@ import structlog
 import uuid
 from typing import List
 from sqlalchemy.orm import Session
+from backend.shared.security import require_role
 
 from backend.fabric_api.schemas.upload import UploadResponse, DocumentStatusResponse
 from backend.shared.services.upload_service import UploadService, get_upload_service
@@ -101,7 +102,7 @@ def get_document_status(
         updated_at=doc.updated_at.isoformat()
     )
 
-@router.delete("/documents/{document_id}", status_code=204)
+@router.delete("/documents/{document_id}", status_code=204, dependencies=[require_role("admin")])
 def delete_document(
     document_id: uuid.UUID,
     db: Session = Depends(get_db),

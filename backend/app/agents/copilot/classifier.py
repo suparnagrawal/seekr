@@ -33,7 +33,7 @@ async def evaluate_trigger(
     messages = build_trigger_messages(query, draft_answer)
 
     try:
-        raw = await generate(messages, temperature=0.1, max_tokens=256)
+        raw = await generate(messages, temperature=0.1, max_tokens=256, model=settings.FAST_MODEL)
         
         # Robust JSON extraction
         match = re.search(r'\{.*\}', raw.strip(), re.DOTALL)

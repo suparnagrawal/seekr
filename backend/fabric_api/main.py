@@ -11,6 +11,7 @@ from backend.fabric_api.exception_handlers import seekr_error_handler, generic_e
 from backend.fabric_api.routes import health, upload, metrics
 from backend.shared.constants import API_V1_PREFIX
 from backend.shared.security import verify_jwt
+from prometheus_fastapi_instrumentator import Instrumentator
 
 logger = structlog.get_logger(__name__)
 
@@ -33,6 +34,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    Instrumentator().instrument(app)
 
     # Register Exception Handlers
     app.add_exception_handler(SeekrError, seekr_error_handler)

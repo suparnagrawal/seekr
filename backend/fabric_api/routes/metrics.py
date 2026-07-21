@@ -1,53 +1,63 @@
 from fastapi import APIRouter
-from backend.shared.database import SessionLocal
-from backend.shared.neo4j_client import neo4j_driver
+from fastapi.responses import PlainTextResponse
+from backend.shared.database import SessionLocal, pg_pool
+from backend.shared.neo4j_client import get_neo4j_async
 from backend.shared.services.qdrant_service import get_qdrant_service
 from backend.shared.config import settings
+import asyncio
+from prometheus_client import Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 router = APIRouter(tags=["Metrics"])
+
+# Custom Prometheus Metrics
+NEO4J_NODES = Gauge("seekr_neo4j_nodes_total", "Total nodes in Neo4j")
+NEO4J_EDGES = Gauge("seekr_neo4j_edges_total", "Total edges in Neo4j")
+QDRANT_POINTS = Gauge("seekr_qdrant_points_total", "Total points in Qdrant")
+POSTGRES_DOCUMENTS = Gauge("seekr_postgres_documents_total", "Total documents in Postgres")
+POSTGRES_FACTS = Gauge("seekr_postgres_facts_total", "Total facts in Postgres")
 
 @router.get("/metrics")
 async def get_metrics():
     """
-    Returns system metrics for the knowledge graph, vector store, and relational database.
+    Returns system metrics in Prometheus format for the knowledge graph, vector store, and relational database.
     Required for PS8 operational visibility.
     """
-    metrics = {
-        "status": "ok",
-        "neo4j": {"nodes": 0, "edges": 0},
-        "qdrant": {"points": 0},
-        "postgres": {"documents": 0, "facts": 0}
-    }
-    
     # Neo4j Metrics
     try:
-        with neo4j_driver.session() as session:
-            node_result = session.run("MATCH (n) RETURN count(n) AS cnt")
-            metrics["neo4j"]["nodes"] = node_result.single()["cnt"]
+        neo4j_async = get_neo4j_async()
+        async with neo4j_async.session() as session:
+            node_result = await session.run("MATCH (n) RETURN count(n) AS cnt")
+            node_record = await node_result.single()
+            if node_record: NEO4J_NODES.set(node_record["cnt"])
             
-            edge_result = session.run("MATCH ()-[r]->() RETURN count(r) AS cnt")
-            metrics["neo4j"]["edges"] = edge_result.single()["cnt"]
+            edge_result = await session.run("MATCH ()-[r]->() RETURN count(r) AS cnt")
+            edge_record = await edge_result.single()
+            if edge_record: NEO4J_EDGES.set(edge_record["cnt"])
     except Exception:
-        metrics["neo4j"] = "unreachable"
+        pass
         
     # Qdrant Metrics
     try:
-        qdrant = get_qdrant_service()
-        col_info = qdrant.client.get_collection(settings.QDRANT_COLLECTION)
-        metrics["qdrant"]["points"] = col_info.points_count
+        def get_qdrant_metrics():
+            qdrant = get_qdrant_service()
+            return qdrant.client.get_collection(settings.QDRANT_COLLECTION).points_count
+            
+        points = await asyncio.to_thread(get_qdrant_metrics)
+        QDRANT_POINTS.set(points)
     except Exception:
-        metrics["qdrant"] = "unreachable"
+        pass
         
     # Postgres Metrics
     try:
-        with SessionLocal() as db:
-            from sqlalchemy import text
-            doc_res = db.execute(text("SELECT count(*) FROM documents"))
-            metrics["postgres"]["documents"] = doc_res.scalar()
+        async with pg_pool.connection() as conn:
+            doc_res = await conn.execute("SELECT count(*) FROM documents")
+            doc_count = await doc_res.fetchone()
+            if doc_count: POSTGRES_DOCUMENTS.set(doc_count[0])
             
-            fact_res = db.execute(text("SELECT count(*) FROM facts"))
-            metrics["postgres"]["facts"] = fact_res.scalar()
+            fact_res = await conn.execute("SELECT count(*) FROM facts")
+            fact_count = await fact_res.fetchone()
+            if fact_count: POSTGRES_FACTS.set(fact_count[0])
     except Exception:
-        metrics["postgres"] = "unreachable"
+        pass
         
-    return metrics
+    return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)

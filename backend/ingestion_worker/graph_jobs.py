@@ -185,7 +185,8 @@ async def _extract_window(chunk_texts: List[str], ml_gateway_url: str | None = N
         temperature=0.0,
         max_tokens=settings.LLM_MAX_TOKENS,
         response_format={"type": "json_object"},
-        base_url_override=target_base_url
+        base_url_override=target_base_url,
+        model=settings.FAST_MODEL
     )
     return _parse_extraction(raw)
 
@@ -363,7 +364,7 @@ def _write_graph(
                     END
                 """,
                 nodes=node_batch,
-                model=settings.LLM_MODEL,
+                model=settings.FAST_MODEL,
             )
 
         for r_type, r_list in rels_by_type.items():
@@ -382,8 +383,52 @@ def _write_graph(
                         r.model_name = $model
                     """,
                     rels=rel_batch,
-                    model=settings.LLM_MODEL,
+                    model=settings.FAST_MODEL,
                 )
+
+    from backend.shared.database import SessionLocal
+    from backend.shared.models.fact import Fact
+    import uuid
+
+    # Write Entities as Facts (type and description) and Relationships as Facts
+    try:
+        with SessionLocal() as pg_session:
+            doc_uuid = uuid.UUID(document_id)
+            for node in valid_nodes:
+                if node.get("type"):
+                    pg_session.merge(Fact(
+                        id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|is_a|{node['type']}"),
+                        subject_tag=node["tag"],
+                        predicate="is_a",
+                        object_value=node["type"],
+                        extraction_method="llm",
+                        source_doc_id=doc_uuid
+                    ))
+                if node.get("description"):
+                    pg_session.merge(Fact(
+                        id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|has_description|{hash(node['description'])}"),
+                        subject_tag=node["tag"],
+                        predicate="has_description",
+                        object_value=node["description"],
+                        extraction_method="llm",
+                        source_doc_id=doc_uuid
+                    ))
+            
+            for r_type, r_list in rels_by_type.items():
+                for rel in r_list:
+                    pg_session.merge(Fact(
+                        id=uuid.UUID(rel["fact_id"]),
+                        subject_tag=rel["source"],
+                        predicate=r_type,
+                        object_tag=rel["target"],
+                        object_value=rel.get("description"),
+                        confidence=rel.get("confidence", 1.0),
+                        extraction_method="llm",
+                        source_doc_id=doc_uuid
+                    ))
+            pg_session.commit()
+    except Exception as e:
+        logger.error("Failed to populate PostgreSQL Facts", error=str(e), exc_info=True)
 
     return len(valid_nodes)
 
