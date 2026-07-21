@@ -176,12 +176,13 @@ def process_embedding_job(document_id: str, ml_gateway_url: str | None = None) -
                 if chunks_path.exists():
                     os.remove(chunks_path)
             
-        except InfrastructureError as e:
-            repo.update_failure(document_id, error_message=str(e), status=DocumentStatus.FAILED.value)
-            repo.db.commit()
-            raise e
         except Exception as e:
-            logger.error("Embedding job failed", document_id=document_id, error=str(e), exc_info=True)
+            if not isinstance(e, InfrastructureError):
+                logger.error("Embedding job failed", document_id=document_id, error=str(e), exc_info=True)
+                
             repo.update_failure(document_id, error_message=str(e), status=DocumentStatus.FAILED.value)
             repo.db.commit()
+            
+            if isinstance(e, InfrastructureError):
+                raise e
             raise IngestionPipelineError(f"Embedding/Indexing failed: {str(e)}", stage="Embedding & Indexing") from e

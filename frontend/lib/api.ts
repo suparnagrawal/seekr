@@ -98,6 +98,31 @@ export async function retryDocument(documentId: string, mlGatewayUrl?: string): 
   return res.json();
 }
 
+export async function cancelDocument(documentId: string): Promise<void> {
+  const url = new URL(`${API_V1}/cancel/${encodeURIComponent(documentId)}`, window.location.origin);
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Cancel failed: ${res.status}`);
+  }
+}
+
+export async function deleteDocument(documentId: string): Promise<void> {
+  const url = new URL(`${API_V1}/documents/${encodeURIComponent(documentId)}`, window.location.origin);
+  const res = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Delete failed: ${res.status}`);
+  }
+}
+
+
 // ---------------------------------------------------------------------------
 // Document ingestion status (real /status/{document_id} endpoint)
 // ---------------------------------------------------------------------------

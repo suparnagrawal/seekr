@@ -52,6 +52,17 @@ def retry_document(
         status=status
     )
 
+@router.post("/cancel/{document_id}", status_code=204, dependencies=[require_role("admin")])
+def cancel_document(
+    document_id: str,
+    upload_service: UploadService = Depends(get_upload_service)
+):
+    """
+    Cancels any running ingestion jobs for a document and marks it as FAILED.
+    """
+    logger.info("Cancel request received", document_id=document_id)
+    upload_service.cancel_upload(document_id)
+
 @router.get("/documents", response_model=List[DocumentStatusResponse])
 def list_documents(db: Session = Depends(get_db)):
     """
