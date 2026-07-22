@@ -48,24 +48,15 @@ def upload_document(
         status=status
     )
 
-@router.post("/retry/{document_id}", response_model=UploadResponse, status_code=202)
+@router.post("/retry/{document_id}", response_model=UploadResponse, status_code=202, dependencies=[require_role("admin")])
 def retry_document(
     document_id: str,
     ml_gateway_url: str | None = Query(None),
-    claims: dict = Depends(verify_jwt),
     upload_service: UploadService = Depends(get_upload_service)
 ):
     """
     Retries the ingestion process for a failed document.
-    When auth is disabled, the dev fallback user is allowed to retry documents.
     """
-    if not settings.auth_enabled:
-        user_role = claims.get("role") or claims.get("roles") or claims.get("user_role", "viewer")
-        if isinstance(user_role, list):
-            if "admin" not in user_role and settings.DEV_FALLBACK_ROLE != "admin":
-                raise HTTPException(status_code=403, detail="Forbidden")
-        elif user_role != "admin" and settings.DEV_FALLBACK_ROLE != "admin":
-            raise HTTPException(status_code=403, detail="Forbidden")
 
     logger.info("Retry request received", document_id=document_id, custom_ml_gateway=ml_gateway_url)
     
