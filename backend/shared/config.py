@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "SEEKR Ingestion & Data Layer"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
+
+    # Environment & Auth Configuration
+    # ENVIRONMENT controls the default auth posture:
+    #   "production" (default) -> auth_enabled=True (secure by default)
+    #   "local" / "development" / "test" -> auth_enabled=False
+    # ENABLE_AUTH explicitly overrides the environment-derived default.
+    # DEV_FALLBACK_ROLE is the role assigned when auth is bypassed locally.
+    ENVIRONMENT: str = "production"
+    ENABLE_AUTH: Optional[bool] = None
+    DEV_FALLBACK_ROLE: str = "viewer"
     
     # PostgreSQL Configuration
     POSTGRES_USER: str = "postgres"
@@ -174,6 +184,18 @@ class Settings(BaseSettings):
             return self.DATABASE_URL
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
     
+    @property
+    def auth_enabled(self) -> bool:
+        """Whether JWT authentication is enforced.
+
+        If ENABLE_AUTH is set explicitly, that wins. Otherwise auth is on
+        in production and off everywhere else (local, development, test).
+        This is the single source of truth for the entire auth posture.
+        """
+        if self.ENABLE_AUTH is not None:
+            return self.ENABLE_AUTH
+        return self.ENVIRONMENT.lower() == "production"
+
     @property
     def redis_url(self) -> str:
         """Constructs the Redis connection URL."""

@@ -16,6 +16,11 @@ from fastapi.testclient import TestClient
 with patch("backend.shared.config.settings.S3_ACCESS_KEY_ID", "mock"):
     from backend.fabric_api.main import app
 
+from backend.shared.security import verify_jwt
+
+# Override auth for all tests — return an admin identity since delete requires it.
+app.dependency_overrides[verify_jwt] = lambda: {"sub": "test-admin", "role": "admin"}
+
 client = TestClient(app)
 
 

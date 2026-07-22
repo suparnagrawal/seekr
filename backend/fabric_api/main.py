@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-import os
 import structlog
 
 from backend.shared.config import settings
@@ -41,9 +40,11 @@ def create_app() -> FastAPI:
     # Health router is usually public
     app.include_router(health.router, prefix=API_V1_PREFIX)
     
-    # Authentication is now configurable for demos.
-    enable_auth = os.getenv("ENABLE_AUTH", "false").lower() == "true"
-    auth_deps = [Depends(verify_jwt)] if enable_auth else []
+    # Authentication is resolved centrally through verify_jwt (which handles
+    # both the real-JWT and dev-mode-bypass paths based on settings.auth_enabled).
+    # All protected routes always go through verify_jwt; when auth is disabled,
+    # verify_jwt returns a dev-user payload instead of rejecting the request.
+    auth_deps = [Depends(verify_jwt)]
     
     app.include_router(upload.router, prefix=API_V1_PREFIX, dependencies=auth_deps)
     

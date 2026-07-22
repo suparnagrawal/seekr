@@ -56,6 +56,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Backend / Worker
+  #
+  # The backend is run separately (e.g. `uvicorn backend.fabric_api.main:app`)
+  # rather than as a Docker service in this compose file.  When running locally
+  # or for demo / hackathon-judge use, set the following environment variables
+  # (or create backend/.env from backend/.env.example):
+  #
+  #   ENVIRONMENT=local          # disables JWT auth by default
+  #   LLM_API_KEY=<your-key>     # required for LLM calls
+  #
+  # For production with real auth, leave ENVIRONMENT unset (defaults to
+  # "production") and configure JWKS_URL + JWT_AUDIENCE.
+  # ---------------------------------------------------------------------------
+
 volumes:
   postgres_data:
   redis_data:
