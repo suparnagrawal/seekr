@@ -115,23 +115,14 @@ def get_document_status(
         
     return _to_status_response(doc)
 
-@router.delete("/documents/{document_id}", status_code=204)
+@router.delete("/documents/{document_id}", status_code=204, dependencies=[require_role("admin")])
 def delete_document(
     document_id: uuid.UUID,
-    claims: dict = Depends(verify_jwt),
     cleanup_service: CleanupService = Depends(get_cleanup_service),
 ):
     """
     Deletes a document and all its associated data.
-    When auth is disabled, the dev fallback user is allowed to delete documents.
     """
-    if not settings.auth_enabled:
-        user_role = claims.get("role") or claims.get("roles") or claims.get("user_role", "viewer")
-        if isinstance(user_role, list):
-            if "admin" not in user_role and settings.DEV_FALLBACK_ROLE != "admin":
-                raise HTTPException(status_code=403, detail="Forbidden")
-        elif user_role != "admin" and settings.DEV_FALLBACK_ROLE != "admin":
-            raise HTTPException(status_code=403, detail="Forbidden")
 
     try:
         cleanup_service.delete_document(document_id)

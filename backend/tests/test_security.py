@@ -32,6 +32,9 @@ def _clear_jwks_cache():
 def configured_env(monkeypatch):
     monkeypatch.setenv("JWKS_URL", "https://issuer.example/.well-known/jwks.json")
     monkeypatch.setenv("JWT_AUDIENCE", "seekr-api")
+    from backend.shared.config import settings
+    monkeypatch.setattr(settings, "ENABLE_AUTH", True)
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
 
 
 class _FakeSigningKey:
@@ -44,6 +47,8 @@ class _FakeJWKSClient:
 
 
 def test_missing_audience_raises_runtime_error(monkeypatch):
+    from backend.shared.config import settings
+    monkeypatch.setattr(settings, "ENABLE_AUTH", True)
     monkeypatch.setenv("JWKS_URL", "https://issuer.example/jwks.json")
     monkeypatch.delenv("JWT_AUDIENCE", raising=False)
     with pytest.raises(RuntimeError, match="JWT_AUDIENCE"):
@@ -51,6 +56,8 @@ def test_missing_audience_raises_runtime_error(monkeypatch):
 
 
 def test_missing_jwks_url_raises_runtime_error(monkeypatch):
+    from backend.shared.config import settings
+    monkeypatch.setattr(settings, "ENABLE_AUTH", True)
     monkeypatch.setenv("JWT_AUDIENCE", "seekr-api")
     monkeypatch.delenv("JWKS_URL", raising=False)
     with pytest.raises(RuntimeError, match="JWKS_URL"):

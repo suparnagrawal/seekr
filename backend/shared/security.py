@@ -76,6 +76,12 @@ def require_role(*allowed_roles: str):
     of *allowed_roles*, a 403 is returned.
     """
     def _check(claims: dict = Depends(verify_jwt)):
+        if not settings.auth_enabled:
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning("rbac_bypassed_locally", environment=settings.ENVIRONMENT, fallback_role=settings.DEV_FALLBACK_ROLE)
+            return claims
+            
         user_role = claims.get("role") or claims.get("roles") or claims.get("user_role", "viewer")
         # Support both single-string and list-of-strings role claims.
         if isinstance(user_role, list):
