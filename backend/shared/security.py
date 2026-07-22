@@ -22,12 +22,13 @@ def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security_sche
     Validates a JWT against a remote JWKS URL. 
     Production deployments must set the JWKS_URL and JWT_AUDIENCE environment variables.
     """
+    if not settings.auth_enabled:
+        import structlog
+        logger = structlog.get_logger(__name__)
+        logger.warning("auth_bypassed_locally", environment=settings.ENVIRONMENT, fallback_role=settings.DEV_FALLBACK_ROLE)
+        return {"sub": "dev-user", "role": settings.DEV_FALLBACK_ROLE}
+
     if not credentials:
-        if not settings.auth_enabled:
-            import structlog
-            logger = structlog.get_logger(__name__)
-            logger.warning("auth_bypassed_locally", environment=settings.ENVIRONMENT, fallback_role=settings.DEV_FALLBACK_ROLE)
-            return {"sub": "dev-user", "role": settings.DEV_FALLBACK_ROLE}
         raise AuthenticationError("Not authenticated")
         
     token = credentials.credentials
