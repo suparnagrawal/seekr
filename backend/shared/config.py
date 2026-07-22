@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     RQ_RETRY_MAX: int = 3
     RQ_RETRY_INTERVALS: str = "10,30,60"
 
+    # Render deployment safeguards
+    RENDER_ENABLE_INGESTION_WORKER: bool = False
+    RENDER_MAX_CONCURRENCY: int = 4
+    RENDER_WORKER_START_DELAY_SECONDS: int = 0
+
     # Knowledge-graph extraction (P1 -> Neo4j)
     GRAPH_EXTRACTION_ENABLED: bool = True
     # Hard ceiling on chunks considered for extraction. 0 (or negative) means

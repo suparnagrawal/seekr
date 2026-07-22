@@ -11,10 +11,14 @@ export VECLIB_MAXIMUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
-echo "Scheduling RQ Ingestion Worker to start in 20 seconds..."
-# Run the worker in the background after a delay to prevent ONNX/CPU deadlock with Uvicorn
-(sleep 20 && echo "Starting RQ Ingestion Worker now..." && python -m backend.ingestion_worker.main) &
+# Enable the background worker only when explicitly requested to avoid Render memory spikes.
+if [ "${RENDER_ENABLE_INGESTION_WORKER:-false}" = "true" ]; then
+  echo "Scheduling RQ Ingestion Worker to start in ${RENDER_WORKER_START_DELAY_SECONDS:-0} seconds..."
+  (sleep "${RENDER_WORKER_START_DELAY_SECONDS:-0}" && echo "Starting RQ Ingestion Worker now..." && python -m backend.ingestion_worker.main) &
+else
+  echo "Skipping RQ Ingestion Worker startup on Render to conserve memory."
+fi
 
 echo "Starting FastAPI Web Server..."
 # Run the web server in the foreground with proxy headers for HTTPS
-uvicorn backend.fabric_api.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*" --limit-concurrency 10
+uvicorn backend.fabric_api.main:app --host 0.0.0.0 --port "$PORT" --proxy-headers --forwarded-allow-ips="*" --limit-concurrency "${RENDER_MAX_CONCURRENCY:-4}"
