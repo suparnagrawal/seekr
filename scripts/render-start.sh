@@ -13,6 +13,13 @@ export TOKENIZERS_PARALLELISM=false
 
 WORKER_PID=""
 UVICORN_PID=""
+# RQ's first SIGTERM is a "warm shutdown": if a job is mid-flight it just
+# waits for that job to finish (up to RQ_GRAPH_TIMEOUT=7200s) before exiting.
+# Left unbounded, the old instance stays alive for hours alongside the new
+# one Render just started, blowing the account's concurrency limit on every
+# redeploy that lands mid-job. Only a SECOND SIGTERM makes RQ cold-shutdown
+# immediately (rq.Worker.request_force_stop), so bound the wait and escalate.
+WORKER_SHUTDOWN_GRACE_SECONDS="${WORKER_SHUTDOWN_GRACE_SECONDS:-25}"
 
 # Bash does not forward signals to background jobs on its own, so without this
 # trap a redeploy's SIGTERM only reaches uvicorn (the foreground process) and
@@ -21,8 +28,20 @@ UVICORN_PID=""
 # collide with. Forward the signal to both children and wait for them to exit.
 cleanup() {
   echo "Shutdown signal received, forwarding to child processes..."
-  [ -n "$WORKER_PID" ] && kill -TERM "$WORKER_PID" 2>/dev/null
   [ -n "$UVICORN_PID" ] && kill -TERM "$UVICORN_PID" 2>/dev/null
+  if [ -n "$WORKER_PID" ]; then
+    kill -TERM "$WORKER_PID" 2>/dev/null
+    for _ in $(seq 1 "$WORKER_SHUTDOWN_GRACE_SECONDS"); do
+      kill -0 "$WORKER_PID" 2>/dev/null || break
+      sleep 1
+    done
+    if kill -0 "$WORKER_PID" 2>/dev/null; then
+      echo "Worker still mid-job after ${WORKER_SHUTDOWN_GRACE_SECONDS}s, forcing cold shutdown..."
+      kill -TERM "$WORKER_PID" 2>/dev/null
+      sleep 2
+      kill -KILL "$WORKER_PID" 2>/dev/null
+    fi
+  fi
   wait
   exit 0
 }
