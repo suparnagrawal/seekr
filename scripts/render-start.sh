@@ -12,7 +12,7 @@ export NUMEXPR_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
 # Enable the background worker only when explicitly requested to avoid Render memory spikes.
-if [ "${RENDER_ENABLE_INGESTION_WORKER:-false}" = "true" ]; then
+if [ "${RENDER_ENABLE_INGESTION_WORKER:-true}" = "true" ]; then
   echo "Scheduling RQ Ingestion Worker to start in ${RENDER_WORKER_START_DELAY_SECONDS:-0} seconds..."
   (sleep "${RENDER_WORKER_START_DELAY_SECONDS:-0}" && echo "Starting RQ Ingestion Worker now..." && python -m backend.ingestion_worker.main) &
 else

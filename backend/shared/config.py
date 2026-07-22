@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     RQ_RETRY_INTERVALS: str = "10,30,60"
 
     # Render deployment safeguards
-    RENDER_ENABLE_INGESTION_WORKER: bool = False
+    RENDER_ENABLE_INGESTION_WORKER: bool = True
     RENDER_MAX_CONCURRENCY: int = 4
     RENDER_WORKER_START_DELAY_SECONDS: int = 0
 
