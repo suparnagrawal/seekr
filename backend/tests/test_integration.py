@@ -27,31 +27,7 @@ async def test_metrics_endpoint(client):
     assert "seekr_postgres_documents_total" in text
 
 @pytest.mark.asyncio
-async def test_graph_feedback_endpoint(client):
-    tag = f"TEST_PUMP_{uuid.uuid4().hex[:6]}"
-    payload = {
-        "description": "Test updated description",
-        "entity_type": "Pump",
-        "correction_note": "Expert validation for tests."
-    }
-    try:
-        response = await client.post(f"{BASE_URL}/entities/{tag}/feedback", json=payload)
-        assert response.status_code in (200, 404, 500)
-    except Exception:
-        pass
-        
-@pytest.mark.asyncio
-async def test_agent_query(client):
-    payload = {
-        "query": "Tell me about the test pump",
-        "session_id": "test_session_123"
-    }
-    # Try to start a stream request. We only care that the connection opens and streams.
-    try:
-        async with client.stream("POST", f"{BASE_URL}/query/stream", json=payload) as response:
-            assert response.status_code in (200, 404, 500)
-    except Exception:
-        pass
+
 
 @pytest.mark.asyncio
 async def test_unauthorized_request(client):

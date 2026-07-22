@@ -26,6 +26,18 @@ async def lifespan(app: FastAPI):
     setup_logging()
     logger.info("Application starting up...", version=settings.VERSION)
     
+    # Log startup summary
+    logger.info(
+        "Seekr Configuration Summary",
+        environment=settings.ENVIRONMENT,
+        auth_enabled=settings.auth_enabled,
+        fallback_role=settings.DEV_FALLBACK_ROLE,
+        llm_model=settings.LLM_MODEL,
+        fast_model=settings.FAST_MODEL,
+        embedding_model=settings.EMBEDDING_MODEL,
+        qdrant_collection=settings.QDRANT_COLLECTION
+    )
+    
     # Ensure UPLOAD_DIR exists
     try:
         settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

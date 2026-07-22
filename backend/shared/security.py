@@ -7,12 +7,7 @@ from backend.shared.exceptions import AuthenticationError, AuthorizationError
 from backend.shared.config import settings
 
 from functools import lru_cache
-import structlog
 
-logger = structlog.get_logger(__name__)
-
-# auto_error=False so that missing credentials reach verify_jwt's bypass check
-# instead of raising a generic 403 before we can log or return a dev-user payload.
 security_scheme = HTTPBearer(auto_error=False)
 
 @lru_cache
@@ -26,22 +21,15 @@ def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security_sche
     """
     Validates a JWT against a remote JWKS URL. 
     Production deployments must set the JWKS_URL and JWT_AUDIENCE environment variables.
-
-    When auth is disabled (ENVIRONMENT != "production" or ENABLE_AUTH=false), missing
-    credentials are allowed and a dev-user payload is returned with the configured
-    DEV_FALLBACK_ROLE (default: "viewer"). This bypass is logged loudly so it is
-    never mistaken for genuine authentication.
     """
     if not credentials:
         if not settings.auth_enabled:
-            logger.warning(
-                "auth_bypassed_locally",
-                environment=settings.ENVIRONMENT,
-                fallback_role=settings.DEV_FALLBACK_ROLE,
-            )
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning("auth_bypassed_locally", environment=settings.ENVIRONMENT, fallback_role=settings.DEV_FALLBACK_ROLE)
             return {"sub": "dev-user", "role": settings.DEV_FALLBACK_ROLE}
         raise AuthenticationError("Not authenticated")
-
+        
     token = credentials.credentials
 
     # Configuration errors must surface as server errors (RuntimeError -> 500),
@@ -109,3 +97,4 @@ def get_current_user(claims: dict = Depends(verify_jwt)) -> dict:
         "role": claims.get("role") or claims.get("roles") or claims.get("user_role", "viewer"),
         "email": claims.get("email"),
     }
+

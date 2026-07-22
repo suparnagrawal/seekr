@@ -18,7 +18,7 @@
 **ET AI Hackathon 2026 — Problem Statement 8**
 *AI for Industrial Knowledge Intelligence: Unified Asset & Operations Brain*
 
-**Live Demo:** [https://seekr-search-ai.vercel.app](https://seekr-search-ai.vercel.app)
+**Live Demo:** [https://seekr-proj.vercel.app](https://seekr-proj.vercel.app)
 
 </div>
 
@@ -241,6 +241,54 @@ npm install && npm run dev
 | `FAST_MODEL` / `FAST_MODEL_API_KEY` / `FAST_MODEL_BASE_URL` | Lightweight classifier model |
 | `EMBEDDING_MODEL` | Embedding model (default: BAAI/bge-base-en-v1.5) |
 | `S3_*` | S3-compatible storage configuration |
+| `ENVIRONMENT` | `production` (default) or `local`. Controls auth strictness |
+| `ENABLE_AUTH` | `true`/`false`. If omitted, enabled by default in `production` |
+| `DEV_FALLBACK_ROLE` | Fallback role when auth is bypassed (default: `viewer`) |
+
+---
+
+## Authentication & Security
+
+Seekr is secure-by-default in `production`, utilizing JWT validation and Role-Based Access Control (RBAC). 
+
+**Production Mode (Default)**
+- `ENVIRONMENT=production`
+- All mutable endpoints require an authenticated JWT bearing the `admin` role.
+- Unauthenticated requests are rejected (`HTTP 401/403`).
+- **Configuration**: Setup requires setting standard JWT variables (e.g. via OIDC provider) if fully enabling SSO.
+
+**Local Demo Mode**
+- `ENVIRONMENT=local`
+- `ENABLE_AUTH=false`
+- Bypasses JWT requirements for rapid evaluation.
+- Requests automatically fall back to `DEV_FALLBACK_ROLE` (defaults to `viewer`), restricting destructive actions but enabling full interaction and document querying.
+- The included `docker-compose.yml` automatically uses Local Demo Mode.
+
+---
+
+## Operations
+
+### How to Run Tests
+Seekr has a comprehensive pytest suite:
+```bash
+cd backend
+poetry run pytest tests/
+```
+(Or use `uv run pytest tests/` if utilizing `uv`). Tests are run against mocked database fixtures by default.
+
+### How to Ingest PDFs
+1. Access the web interface at `http://localhost:3000`.
+2. Navigate to the **Upload** section.
+3. Select your industrial PDF.
+4. The file is sent to the FastAPI Gateway, which stores the artifact and queues an ingestion task.
+5. The separate `ingestion_worker` automatically pops the task, parses layout (via Docling), generates embeddings, extracts a knowledge graph (via LLM), and commits to Postgres, Qdrant, and Neo4j.
+
+### How to Access APIs
+- The REST API is accessible at `http://localhost:8000/api/v1`.
+- Interactive Swagger UI documentation is available at `http://localhost:8000/docs`.
+
+### How to Open the Frontend
+The Next.js frontend runs on `http://localhost:3000` (started via `npm run dev` or docker-compose).
 
 ### Frontend (`frontend/.env`)
 
