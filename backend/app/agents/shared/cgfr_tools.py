@@ -43,7 +43,7 @@ async def find_by_type(entity_type: str) -> List[Dict[str, Any]]:
     driver = get_neo4j_async()
     async with driver.session() as session:
         result = await session.run(
-            "MATCH (n:Entity) WHERE n.type =~ '(?i)' + $type RETURN n.tag AS tag, n.name AS name LIMIT 20",
+            "MATCH (n:Entity) WHERE toLower(n.type) = toLower($type) RETURN n.tag AS tag, n.name AS name LIMIT 20",
             type=entity_type
         )
         records = await result.data()

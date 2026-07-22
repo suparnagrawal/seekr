@@ -191,66 +191,70 @@ async def submit_entity_feedback(tag: str, request: EntityFeedbackRequest):
         prev_desc = record.get("desc")
         prev_type = record.get("type")
 
-        # Build SET clause dynamically based on what's provided
-        set_clauses = []
-        params: Dict[str, Any] = {"tag": tag}
+    # Build SET clause dynamically based on what's provided
+    set_clauses = []
+    params: Dict[str, Any] = {"tag": tag}
 
-        if request.description is not None:
-            set_clauses.append("n.description = $description")
-            params["description"] = request.description
-        if request.entity_type is not None:
-            set_clauses.append("n.type = $entity_type")
-            params["entity_type"] = request.entity_type
+    if request.description is not None:
+        set_clauses.append("n.description = $description")
+        params["description"] = request.description
+    if request.entity_type is not None:
+        set_clauses.append("n.type = $entity_type")
+        params["entity_type"] = request.entity_type
 
-        if set_clauses:
-            set_clause = ", ".join(set_clauses)
-            await session.run(
-                f"MATCH (n:Entity {{tag: $tag}}) SET {set_clause}",
-                **params,
-            )
-
-    # Postgres Fact Supersession
     from backend.shared.database import pg_pool
     from backend.shared.models.fact import Fact
     import uuid
     from datetime import datetime, timezone
 
     async with pg_pool.connection() as conn:
-        new_facts = []
-        if request.description is not None:
-            new_id = str(uuid.uuid4())
-            new_facts.append({
-                "id": new_id,
-                "predicate": "has_description",
-                "object_value": request.description
-            })
-        if request.entity_type is not None:
-            new_id = str(uuid.uuid4())
-            new_facts.append({
-                "id": new_id,
-                "predicate": "is_a",
-                "object_value": request.entity_type
-            })
-            
-        for nf in new_facts:
-            # Mark existing active facts of this predicate as superseded
-            await conn.execute(
-                """
-                UPDATE facts 
-                SET status = 'superseded', superseded_by = $1 
-                WHERE subject_tag = $2 AND predicate = $3 AND status = 'active'
-                """,
-                nf["id"], tag, nf["predicate"]
-            )
-            
-            # Insert the new fact
-            await conn.execute(
-                """
-                INSERT INTO facts (id, subject_tag, predicate, object_value, extraction_method, status, created_at, confidence)
-                VALUES ($1, $2, $3, $4, 'manual', 'active', $5, 1.0)
-                """,
-                nf["id"], tag, nf["predicate"], nf["object_value"], datetime.now(timezone.utc)
-            )
+        async with conn.transaction():
+            new_facts = []
+            if request.description is not None:
+                new_id = str(uuid.uuid4())
+                new_facts.append({
+                    "id": new_id,
+                    "predicate": "has_description",
+                    "object_value": request.description
+                })
+            if request.entity_type is not None:
+                new_id = str(uuid.uuid4())
+                new_facts.append({
+                    "id": new_id,
+                    "predicate": "is_a",
+                    "object_value": request.entity_type
+                })
+                
+            for nf in new_facts:
+                # Mark existing active facts of this predicate as superseded
+                await conn.execute(
+                    """
+                    UPDATE facts 
+                    SET status = 'superseded', superseded_by = $1 
+                    WHERE subject_tag = $2 AND predicate = $3 AND status = 'active'
+                    """,
+                    nf["id"], tag, nf["predicate"]
+                )
+                
+                # Insert the new fact
+                await conn.execute(
+                    """
+                    INSERT INTO facts (id, subject_tag, predicate, object_value, extraction_method, status, created_at, confidence)
+                    VALUES ($1, $2, $3, $4, 'manual', 'active', $5, 1.0)
+                    """,
+                    nf["id"], tag, nf["predicate"], nf["object_value"], datetime.now(timezone.utc)
+                )
+
+            # Perform Neo4j Update inside the same logical block
+            if set_clauses:
+                set_clause = ", ".join(set_clauses)
+                async with driver.session() as session:
+                    async with session.begin_transaction() as tx:
+                        await tx.run(
+                            f"MATCH (n:Entity {{tag: $tag}}) SET {set_clause}",
+                            **params,
+                        )
+                        await tx.commit()
 
     # Audit log
     import asyncio

@@ -168,7 +168,8 @@ def _window(items: List[str], size: int) -> List[List[str]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-async def _extract_window(chunk_texts: List[str], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract_window(chunks: List[Dict[str, Any]], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+    chunk_texts = [c["text"] for c in chunks]
     joined = "\n\n---\n\n".join(chunk_texts)
     messages = [
         {"role": "system", "content": _EXTRACTION_SYSTEM_PROMPT},
@@ -187,20 +188,36 @@ async def _extract_window(chunk_texts: List[str], ml_gateway_url: str | None = N
         base_url_override=target_base_url,
         model=settings.FAST_MODEL
     )
-    return _parse_extraction(raw)
+    result = _parse_extraction(raw)
+    
+    # Attach provenance
+    for ent in result.get("entities", []):
+        name = ent.get("name") or ent.get("tag") or ""
+        for c in chunks:
+            if name and name.lower() in c.get("text", "").lower():
+                meta = c.get("metadata", {})
+                ent["source_passage"] = {"page": meta.get("page_numbers"), "bbox": meta.get("bbox")}
+                break
+                
+    for rel in result.get("relationships", []):
+        desc = rel.get("description") or ""
+        for c in chunks:
+            if desc and desc[:30].lower() in c.get("text", "").lower():
+                meta = c.get("metadata", {})
+                rel["source_passage"] = {"page": meta.get("page_numbers"), "bbox": meta.get("bbox")}
+                break
+                
+    return result
 
 
-async def _extract(chunk_texts: List[str], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract(chunks: List[Dict[str, Any]], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
     """Extract entities/relationships over the whole document via windowed,
     bounded-concurrency LLM calls, then merge the per-window results.
-
-    A single window failing is tolerated: its exception is logged and it
-    contributes nothing, rather than failing the whole document.
     """
-    windows = _window(chunk_texts, settings.GRAPH_EXTRACTION_WINDOW)
+    windows = _window(chunks, settings.GRAPH_EXTRACTION_WINDOW)
     semaphore = asyncio.Semaphore(max(1, settings.GRAPH_EXTRACTION_CONCURRENCY))
 
-    async def _guarded(win: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+    async def _guarded(win: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         async with semaphore:
             try:
                 return await _extract_window(win, ml_gateway_url)
@@ -237,10 +254,12 @@ def _merge_extractions(
 
             if key not in entities:
                 tag_alias[key] = raw_tag
-                entities[key] = {"tag": raw_tag, "name": name, "type": etype, "description": desc}
+                entities[key] = {"tag": raw_tag, "name": name, "type": etype, "description": desc, "source_passage": ent.get("source_passage")}
                 continue
 
             existing = entities[key]
+            if not existing.get("source_passage") and ent.get("source_passage"):
+                existing["source_passage"] = ent["source_passage"]
             if len(desc) > len(existing["description"]):
                 existing["description"] = desc
             # Prefer a non-default type if we only had the generic fallback.
@@ -276,12 +295,15 @@ def _merge_extractions(
                     "type": rel_type,
                     "confidence": confidence,
                     "description": desc,
+                    "source_passage": rel.get("source_passage")
                 }
             else:
                 existing = relationships[rkey]
                 existing["confidence"] = max(existing["confidence"], confidence)
                 if len(desc) > len(existing["description"]):
                     existing["description"] = desc
+                if not existing.get("source_passage") and rel.get("source_passage"):
+                    existing["source_passage"] = rel["source_passage"]
 
     return {
         "entities": list(entities.values()),
@@ -314,6 +336,7 @@ def _write_graph(
                 "name": str(ent.get("name") or tag),
                 "type": _norm_node_type(ent.get("type")),
                 "description": str(ent.get("description") or ""),
+                "source_passage": ent.get("source_passage")
             }
         )
         valid_tags.add(tag)
@@ -340,6 +363,7 @@ def _write_graph(
                 "target": tgt,
                 "confidence": confidence,
                 "description": str(rel.get("description") or ""),
+                "source_passage": rel.get("source_passage"),
                 "fact_id": _fact_id(document_id, src, rel_type, tgt),
                 "source_doc_id": document_id,
             }
@@ -398,7 +422,8 @@ def _write_graph(
                     predicate="is_a",
                     object_value=node["type"],
                     extraction_method="llm",
-                    source_doc_id=doc_uuid
+                    source_doc_id=doc_uuid,
+                    source_passage=node.get("source_passage")
                 ))
             if node.get("description"):
                 pg_session.merge(Fact(
@@ -407,7 +432,8 @@ def _write_graph(
                     predicate="has_description",
                     object_value=node["description"],
                     extraction_method="llm",
-                    source_doc_id=doc_uuid
+                    source_doc_id=doc_uuid,
+                    source_passage=node.get("source_passage")
                 ))
         
         for r_type, r_list in rels_by_type.items():
@@ -420,7 +446,8 @@ def _write_graph(
                     object_value=rel.get("description"),
                     confidence=rel.get("confidence", 1.0),
                     extraction_method="llm",
-                    source_doc_id=doc_uuid
+                    source_doc_id=doc_uuid,
+                    source_passage=rel.get("source_passage")
                 ))
             
     except Exception as e:
@@ -429,8 +456,8 @@ def _write_graph(
     return len(valid_nodes)
 
 
-def _load_chunk_texts(document_id: str) -> List[str]:
-    """Read chunk texts from the document's NDJSON artifact, honoring an optional cap."""
+def _load_chunks(document_id: str) -> List[Dict[str, Any]]:
+    """Read chunks from the document's NDJSON artifact, honoring an optional cap."""
     artifact_uri = storage_manager.get_artifact_uri(document_id, "chunks.jsonl")
     try:
         temp_chunks_path = storage_manager.download_to_tempfile(artifact_uri)
@@ -443,7 +470,7 @@ def _load_chunk_texts(document_id: str) -> List[str]:
         return []
         
     cap = settings.GRAPH_EXTRACTION_MAX_CHUNKS
-    texts: List[str] = []
+    chunks: List[Dict[str, Any]] = []
     
     try:
         with chunks_path.open("r", encoding="utf-8") as f:
@@ -452,14 +479,14 @@ def _load_chunk_texts(document_id: str) -> List[str]:
                     continue
                 c = json.loads(line)
                 if c.get("text"):
-                    texts.append(c["text"])
-                if cap and cap > 0 and len(texts) >= cap:
+                    chunks.append(c)
+                if cap and cap > 0 and len(chunks) >= cap:
                     break
     finally:
         if chunks_path.exists():
             os.remove(chunks_path)
             
-    return texts
+    return chunks
 
 
 def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Dict[str, Any]:
@@ -482,15 +509,15 @@ def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Di
         logger.info("Starting graph extraction job", document_id=document_id)
 
         try:
-            texts = _load_chunk_texts(document_id)
-            if not texts:
+            chunks = _load_chunks(document_id)
+            if not chunks:
                 logger.warning("no_chunks_for_graph_extraction", document_id=document_id)
                 repo.mark_graph_skipped(document_id)
                 repo.db.commit()
                 return {"status": "skipped", "reason": "no chunks", "document_id": document_id}
 
             _bootstrap_constraint()
-            extraction = asyncio.run(_extract(texts, ml_gateway_url))
+            extraction = asyncio.run(_extract(chunks, ml_gateway_url))
             nodes_written = _write_graph(
                 extraction["entities"], extraction["relationships"], document_id, repo
             )
@@ -501,8 +528,8 @@ def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Di
             logger.info(
                 "Graph extraction completed",
                 document_id=document_id,
-                chunks_used=len(texts),
-                windows=len(_window(texts, settings.GRAPH_EXTRACTION_WINDOW)),
+                chunks_used=len(chunks),
+                windows=len(_window(chunks, settings.GRAPH_EXTRACTION_WINDOW)),
                 entities=len(extraction["entities"]),
                 relationships=len(extraction["relationships"]),
                 nodes_written=nodes_written,

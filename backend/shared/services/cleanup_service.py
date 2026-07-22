@@ -38,16 +38,16 @@ class CleanupService:
             self.repo.db.rollback()
             
     def cleanup_failed_parse(self, document_id: uuid.UUID | str, error_message: str):
-        """Stub: Recovery workflow for parsing failures."""
-        pass
+        """Future work: Recovery workflow for parsing failures."""
+        raise NotImplementedError("Parse failure cleanup is deferred to future milestones.")
         
     def cleanup_failed_embedding(self, document_id: uuid.UUID | str, error_message: str):
-        """Stub: Recovery workflow for embedding failures."""
-        pass
+        """Future work: Recovery workflow for embedding failures."""
+        raise NotImplementedError("Embedding failure cleanup is deferred to future milestones.")
         
     def cleanup_orphan_artifacts(self):
-        """Stub: Cron-like workflow for orphan garbage collection."""
-        pass
+        """Future work: Cron-like workflow for orphan garbage collection."""
+        raise NotImplementedError("Global artifact garbage collection is deferred to future milestones.")
 
     def delete_document(self, document_id: uuid.UUID | str):
         """

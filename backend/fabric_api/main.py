@@ -44,18 +44,24 @@ def create_app() -> FastAPI:
     # Health is usually public
     app.include_router(health.router, prefix=API_V1_PREFIX)
     
-    # Authentication is now configurable for demos.
-    enable_auth = os.getenv("ENABLE_AUTH", "false").lower() == "true"
-    auth_deps = [Depends(verify_jwt)] if enable_auth else []
+    # Register global dependencies dynamically based on auth config
+    dependencies = []
     
-    app.include_router(upload.router, prefix=API_V1_PREFIX, dependencies=auth_deps)
-    app.include_router(metrics.router, prefix=API_V1_PREFIX, dependencies=auth_deps)
+    if settings.auth_enabled:
+        from backend.shared.security import verify_jwt
+        dependencies.append(Depends(verify_jwt))
+        logger.info("global_auth_enabled", status="active", environment=settings.ENVIRONMENT)
+    else:
+        logger.warning("global_auth_disabled", status="inactive", reason="auth_enabled=False")
+    
+    app.include_router(upload.router, prefix=API_V1_PREFIX, dependencies=dependencies)
+    app.include_router(metrics.router, prefix=API_V1_PREFIX, dependencies=dependencies)
     
     # Include P2/P3 application routers
     from backend.app.api import query, agents, graph
-    app.include_router(query.router, prefix=API_V1_PREFIX, tags=["query"], dependencies=auth_deps)
-    app.include_router(agents.router, prefix=f"{API_V1_PREFIX}/agents", tags=["agents"], dependencies=auth_deps)
-    app.include_router(graph.router, prefix=API_V1_PREFIX, tags=["graph"], dependencies=auth_deps)
+    app.include_router(query.router, prefix=API_V1_PREFIX, tags=["query"], dependencies=dependencies)
+    app.include_router(agents.router, prefix=f"{API_V1_PREFIX}/agents", tags=["agents"], dependencies=dependencies)
+    app.include_router(graph.router, prefix=API_V1_PREFIX, tags=["graph"], dependencies=dependencies)
 
     return app
 

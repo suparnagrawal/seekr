@@ -15,7 +15,9 @@ from fastapi.testclient import TestClient
 # Mock settings before importing app
 with patch("backend.shared.config.settings.S3_ACCESS_KEY_ID", "mock"):
     from backend.fabric_api.main import app
+    from backend.shared.security import verify_jwt
 
+app.dependency_overrides[verify_jwt] = lambda: {"sub": "test", "role": "admin"}
 client = TestClient(app)
 
 

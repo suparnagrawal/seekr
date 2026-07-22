@@ -4,6 +4,7 @@ from typing import List
 from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from backend.shared.exceptions import AuthenticationError, AuthorizationError
+from backend.shared.config import settings
 
 from functools import lru_cache
 
@@ -13,7 +14,7 @@ security_scheme = HTTPBearer(auto_error=False)
 def get_jwks_client() -> jwt.PyJWKClient:
     jwks_url = os.getenv("JWKS_URL")
     if not jwks_url:
-        raise RuntimeError("JWKS_URL must be configured when ENABLE_AUTH is true.")
+        raise RuntimeError("JWKS_URL must be configured when auth is enabled.")
     return jwt.PyJWKClient(jwks_url)
 
 def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)):
@@ -22,8 +23,11 @@ def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security_sche
     Production deployments must set the JWKS_URL and JWT_AUDIENCE environment variables.
     """
     if not credentials:
-        if os.getenv("ENABLE_AUTH", "false").lower() != "true":
-            return {"sub": "test", "role": "admin"}
+        if not settings.auth_enabled:
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning("auth_bypassed_locally", environment=settings.ENVIRONMENT, fallback_role=settings.DEV_FALLBACK_ROLE)
+            return {"sub": "dev-user", "role": settings.DEV_FALLBACK_ROLE}
         raise AuthenticationError("Not authenticated")
         
     token = credentials.credentials
@@ -35,7 +39,7 @@ def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security_sche
     # itself raises RuntimeError when JWKS_URL is unset.)
     audience = os.getenv("JWT_AUDIENCE")
     if not audience:
-        raise RuntimeError("JWT_AUDIENCE must be configured when ENABLE_AUTH is true.")
+        raise RuntimeError("JWT_AUDIENCE must be configured when auth is enabled.")
 
     jwks_client = get_jwks_client()
 

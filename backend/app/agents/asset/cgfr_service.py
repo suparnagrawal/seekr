@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import structlog
 from typing import AsyncIterator, Tuple
 from backend.app.agents.shared.state import AgentState
 from backend.app.agents.shared.streaming import emit_reasoning, emit_tool_call, emit_tool_result
 from backend.app.agents.shared.llm import generate
 from backend.app.agents.shared.cgfr_tools import find_by_type, compare_specs
 from backend.shared.config import settings
+
+logger = structlog.get_logger(__name__)
 
 async def classify_intent(query: str) -> str:
     """Determine if query is simple asset history or comparative spec matching (CGFR)."""
@@ -85,8 +88,9 @@ def programmatic_filter(candidates_specs: dict, rules: list) -> list:
     return evals
 
 async def evaluate_candidates(target_specs: dict, candidates_specs: dict, rules: list, narrative: list) -> dict:
-    """Programmatic rule evaluation + LLM narrative explanation."""
+    """Programmatic rule evaluation + LLM narrative explanation with determinism verification."""
     prog_evals = programmatic_filter(candidates_specs, rules)
+    prog_map = {e["tag"]: e["pass_programmatic"] for e in prog_evals}
     
     messages = [
         {"role": "system", "content": "You are a constraint evaluation engine. Review the programmatic Pass/Fail evaluation results and the narrative constraints. Output a final evaluation table with explanations. Return strict JSON: {\"evaluations\": [{\"tag\": \"Candidate-Tag\", \"pass\": true, \"reasoning\": \"Passed programmatic rules and meets narrative ...\"}]}"},
@@ -94,8 +98,21 @@ async def evaluate_candidates(target_specs: dict, candidates_specs: dict, rules:
     ]
     try:
         raw = await generate(messages, temperature=0.0, response_format={"type": "json_object"}, model=settings.FAST_MODEL)
-        return json.loads(raw)
-    except Exception:
+        llm_result = json.loads(raw)
+        
+        # Verification Layer
+        for eval_dict in llm_result.get("evaluations", []):
+            tag = eval_dict.get("tag")
+            if tag in prog_map:
+                prog_pass = prog_map[tag]
+                llm_pass = eval_dict.get("pass", False)
+                if prog_pass != llm_pass:
+                    logger.warning("cgfr_determinism_mismatch", tag=tag, prog=prog_pass, llm=llm_pass)
+                    eval_dict["pass"] = prog_pass
+                    eval_dict["reasoning"] = f"[VERIFIER OVERRIDE: Programmatic logic dictates {'Pass' if prog_pass else 'Fail'}]. " + eval_dict.get("reasoning", "")
+        return llm_result
+    except Exception as e:
+        logger.error("cgfr_llm_failure", error=str(e))
         return {"evaluations": prog_evals}
 
 async def run_cgfr_pipeline(state: AgentState) -> AsyncIterator[Tuple[str, str]]:
