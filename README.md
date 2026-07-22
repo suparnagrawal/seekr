@@ -272,9 +272,9 @@ Seekr is secure-by-default in `production`, utilizing JWT validation and Role-Ba
 Seekr has a comprehensive pytest suite:
 ```bash
 cd backend
-poetry run pytest tests/
+uv run pytest tests/
 ```
-(Or use `uv run pytest tests/` if utilizing `uv`). Tests are run against mocked database fixtures by default.
+Tests are run against mocked database fixtures by default.
 
 ### How to Ingest PDFs
 1. Access the web interface at `http://localhost:3000`.

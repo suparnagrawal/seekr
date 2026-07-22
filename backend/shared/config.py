@@ -158,6 +158,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_keys(self):
+        for key, value in self.__dict__.items():
+            if isinstance(value, str) and "<replace_me>" in value:
+                raise ValueError(f"Configuration error: {key} contains placeholder '<replace_me>'. Please set a valid value.")
+                
         if not self.FAST_MODEL_API_KEY and not self.LLM_API_KEY:
             if not self.LLM_BASE_URL or "openai.com" in self.LLM_BASE_URL or "fireworks.ai" in self.LLM_BASE_URL:
                 raise ValueError("LLM_API_KEY or FAST_MODEL_API_KEY must be provided for public LLM endpoints.")
