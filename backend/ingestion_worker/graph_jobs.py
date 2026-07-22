@@ -168,7 +168,7 @@ def _window(items: List[str], size: int) -> List[List[str]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-async def _extract_window(chunks: List[Dict[str, Any]], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract_window(chunks: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     chunk_texts = [c["text"] for c in chunks]
     joined = "\n\n---\n\n".join(chunk_texts)
     messages = [
@@ -176,16 +176,16 @@ async def _extract_window(chunks: List[Dict[str, Any]], ml_gateway_url: str | No
         {"role": "user", "content": joined},
     ]
     logger.info("graph_extraction_window_llm_call", prompt_length=len(joined), chunks=len(chunk_texts))
-    
-    from backend.shared.constants import resolve_gateway_url
-    target_base_url = resolve_gateway_url(ml_gateway_url, '/v1') if ml_gateway_url else None
-        
+
+    # Graph extraction always uses the configured FAST_MODEL endpoint (e.g. Groq).
+    # The personal ML gateway (ngrok tunnel) only offloads parsing and embeddings
+    # (see scripts/serve-embeddings.py) and has no chat-completions route, so it
+    # must never be used as the base_url here.
     raw = await generate(
         messages,
         temperature=0.0,
         max_tokens=settings.LLM_MAX_TOKENS,
         response_format={"type": "json_object"},
-        base_url_override=target_base_url,
         model=settings.FAST_MODEL
     )
     result = _parse_extraction(raw)
@@ -210,7 +210,7 @@ async def _extract_window(chunks: List[Dict[str, Any]], ml_gateway_url: str | No
     return result
 
 
-async def _extract(chunks: List[Dict[str, Any]], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract(chunks: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     """Extract entities/relationships over the whole document via windowed,
     bounded-concurrency LLM calls, then merge the per-window results.
     """
@@ -220,7 +220,7 @@ async def _extract(chunks: List[Dict[str, Any]], ml_gateway_url: str | None = No
     async def _guarded(win: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         async with semaphore:
             try:
-                return await _extract_window(win, ml_gateway_url)
+                return await _extract_window(win)
             except Exception as exc:  # noqa: BLE001 - per-window fail-soft
                 logger.warning("graph_extraction_window_failed", error=str(exc), exc_info=True)
                 return {"entities": [], "relationships": []}
@@ -496,6 +496,11 @@ def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Di
     Reads chunks.jsonl, extracts entities/relationships with the configured LLM
     over the whole document (windowed), and writes them to Neo4j. Participates
     in the document status state machine on every exit path.
+
+    ``ml_gateway_url`` is accepted (and ignored) only because the orchestrator
+    threads it uniformly through every pipeline stage's RQ kwargs; the personal
+    ML gateway offloads parsing/embeddings only and has no chat-completions
+    route, so graph extraction always uses the configured FAST_MODEL endpoint.
     """
     with SessionLocal() as db:
         repo = DocumentRepository(db)
@@ -517,7 +522,7 @@ def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Di
                 return {"status": "skipped", "reason": "no chunks", "document_id": document_id}
 
             _bootstrap_constraint()
-            extraction = asyncio.run(_extract(chunks, ml_gateway_url))
+            extraction = asyncio.run(_extract(chunks))
             nodes_written = _write_graph(
                 extraction["entities"], extraction["relationships"], document_id, repo
             )
