@@ -44,6 +44,7 @@ from backend.shared.config import settings
 from backend.shared.storage import storage_manager
 from backend.shared.neo4j_client import neo4j_driver
 from backend.app.agents.shared.llm import generate
+from backend.shared.llm_clients import aclose_llm_clients
 from backend.shared.database import SessionLocal
 from backend.shared.repositories.document_repository import DocumentRepository
 from datetime import datetime, timezone
@@ -225,8 +226,18 @@ async def _extract(chunks: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any
                 logger.warning("graph_extraction_window_failed", error=str(exc), exc_info=True)
                 return {"entities": [], "relationships": []}
 
-    results = await asyncio.gather(*[_guarded(w) for w in windows])
-    return _merge_extractions(results)
+    try:
+        results = await asyncio.gather(*[_guarded(w) for w in windows])
+        return _merge_extractions(results)
+    finally:
+        # process_graph_job runs this whole coroutine inside a fresh
+        # asyncio.run() per job. The LLM client cache in llm_clients.py is a
+        # process-lifetime singleton whose httpx connection pool binds to
+        # the loop that's running now - if it isn't closed before that loop
+        # goes away, the next job's new loop reuses the same stale client
+        # and every one of its calls stalls through retries instead of
+        # failing fast, degrading every subsequent job on this worker.
+        await aclose_llm_clients()
 
 
 def _merge_extractions(

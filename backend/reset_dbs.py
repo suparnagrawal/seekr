@@ -12,28 +12,22 @@ from backend.shared.neo4j_client import neo4j_driver
 from backend.shared.qdrant_client import qdrant_client
 from qdrant_client.http.models import Distance, VectorParams
 from rq import Queue
-from backend.shared.models.document import Document  # noqa: F401
+from backend.shared.models import Document, Fact, EntityRegistry, EntityAlias, AuditLog  # noqa: F401
+from sqlalchemy import text
 
 
 def reset_postgres():
-    print("Resetting PostgreSQL database...")
-    import subprocess
-    import os
-    
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Downgrade all migrations to drop tables cleanly
-    print("Downgrading all Alembic migrations...")
-    subprocess.run(["alembic", "downgrade", "base"], cwd=backend_dir, check=True)
-    print("Dropped PostgreSQL tables.")
-    
-    # Recreate using Alembic migrations
-    # This ensures the alembic_version table is correctly initialized
-    print("Recreating PostgreSQL tables via Alembic...")
-    
-    # Run alembic upgrade head in the backend directory
-    subprocess.run(["alembic", "upgrade", "head"], cwd=backend_dir, check=True)
-    print("Recreated PostgreSQL tables.")
+    print("Clearing PostgreSQL data...")
+
+    table_names = [table.name for table in reversed(Base.metadata.sorted_tables)]
+    if not table_names:
+        print("No tables found to clear.")
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE TABLE {', '.join(table_names)} RESTART IDENTITY CASCADE"))
+
+    print(f"Cleared data from {len(table_names)} tables (schema left intact).")
 
 
 def reset_redis():
@@ -97,11 +91,11 @@ def reset_storage():
 def _guard() -> None:
     """Refuse to run destructively unless the caller has clearly opted in.
 
-    This script drops all Postgres tables, deletes every Neo4j node, deletes the
-    Qdrant collection, flushes Redis, and wipes local artifact storage. That is
-    unrecoverable against a shared or production-adjacent database. Require an
-    explicit opt-in (``--force`` / ``SEEKR_RESET_CONFIRM=YES``) and, when the
-    target looks production-like, an interactive typed confirmation.
+    This script clears all Postgres data (schema preserved), deletes every Neo4j
+    node, deletes the Qdrant collection, flushes Redis, and wipes local artifact
+    storage. That is unrecoverable against a shared or production-adjacent
+    database. Require an explicit opt-in (``--force`` / ``SEEKR_RESET_CONFIRM=YES``)
+    and, when the target looks production-like, an interactive typed confirmation.
     """
     import argparse
 
