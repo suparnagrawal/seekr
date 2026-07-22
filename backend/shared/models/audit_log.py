@@ -25,6 +25,7 @@ class AuditLog(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         server_default=func.now(),
+        index=True
     )
     actor: Mapped[str] = mapped_column(String, nullable=False, server_default="system")
     action: Mapped[str] = mapped_column(String, nullable=False, index=True)
