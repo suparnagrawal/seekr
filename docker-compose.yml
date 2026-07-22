@@ -1,4 +1,10 @@
+# ──────────────────────────────────────────────────────────
+# Seekr — Full Application Stack
+# Infrastructure + Application services
+# ──────────────────────────────────────────────────────────
+
 services:
+  # ── Infrastructure ──────────────────────────────────────
   postgres:
     image: postgres:15
     environment:
@@ -6,7 +12,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: seekr
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -56,20 +62,72 @@ services:
       timeout: 5s
       retries: 5
 
-  # ---------------------------------------------------------------------------
-  # Backend / Worker
-  #
-  # The backend is run separately (e.g. `uvicorn backend.fabric_api.main:app`)
-  # rather than as a Docker service in this compose file.  When running locally
-  # or for demo / hackathon-judge use, set the following environment variables
-  # (or create backend/.env from backend/.env.example):
-  #
-  #   ENVIRONMENT=local          # disables JWT auth by default
-  #   LLM_API_KEY=<your-key>     # required for LLM calls
-  #
-  # For production with real auth, leave ENVIRONMENT unset (defaults to
-  # "production") and configure JWKS_URL + JWT_AUDIENCE.
-  # ---------------------------------------------------------------------------
+  # ── Application ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override database URLs to point to Docker service names
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/seekr"
+      REDIS_URL: "redis://redis:6379/0"
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: "neo4j"
+      NEO4J_PASSWORD: "password"
+      QDRANT_URL: "http://qdrant:6333"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "backend.ingestion_worker.main"]
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/seekr"
+      REDIS_URL: "redis://redis:6379/0"
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: "neo4j"
+      NEO4J_PASSWORD: "password"
+      QDRANT_URL: "http://qdrant:6333"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: "http://localhost:8000"
+        NEXT_PUBLIC_API_PREFIX: "/api/v1"
+        NEXT_PUBLIC_APP_NAME: "Seekr"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

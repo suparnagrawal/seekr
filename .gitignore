@@ -34,3 +34,10 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+#docs
+*.pdf
+*.txt
+
+# Runtime generated uploads
+backend/uploads/

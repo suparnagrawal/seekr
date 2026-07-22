@@ -55,8 +55,15 @@ class QdrantService:
             )
         else:
             collection_info = client.get_collection(collection_name=self.collection_name)
-            if hasattr(collection_info.config.params, "vectors") and collection_info.config.params.vectors.size != settings.EMBEDDING_DIMENSION:
-                raise ValueError(f"Collection {self.collection_name} dimension mismatch. Expected {settings.EMBEDDING_DIMENSION}")
+            if hasattr(collection_info.config.params, "vectors"):
+                vectors_config = collection_info.config.params.vectors
+                if isinstance(vectors_config, dict):
+                    collection_size = vectors_config.get("size")
+                else:
+                    collection_size = getattr(vectors_config, "size", None)
+                    
+                if collection_size is not None and collection_size != settings.EMBEDDING_DIMENSION:
+                    raise ValueError(f"Collection {self.collection_name} dimension mismatch. Expected {settings.EMBEDDING_DIMENSION}")
         
     def _convert_id_to_uuid(self, chunk_id: str) -> str:
         """

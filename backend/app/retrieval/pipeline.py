@@ -30,7 +30,7 @@ class DefaultRetrievalPipeline(RetrievalPipeline):
         results_groups = await asyncio.gather(*tasks)
         
         # results_groups is a list of lists of Chunks
-        fused_chunks = self.fusion_strategy.fuse(list(results_groups))
+        fused_chunks = self.fusion_strategy.fuse(list(results_groups), context)
         
         if self.reranker:
             fused_chunks = self.reranker.rerank(fused_chunks, query, context)

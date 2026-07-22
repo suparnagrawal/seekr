@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FolderCog, CheckCircle2, CloudUpload, File, AlertCircle, Loader2, RotateCcw } from 'lucide-react';
+import { FolderCog, CheckCircle2, CloudUpload, File, AlertCircle, Loader2, RotateCcw, Trash2, XCircle } from 'lucide-react';
 import { FadeIn } from '@/components/animations/fade-in';
 import { useAuth } from '@/lib/auth-context';
 import { PageTransition } from '@/components/animations/page-transition';
-import { uploadDocument, getDocumentStatus, listDocuments, retryDocument } from '@/lib/api';
+import { uploadDocument, getDocumentStatus, listDocuments, retryDocument, cancelDocument, deleteDocument } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 /** Ordered ingestion pipeline the backend drives a document through. */
@@ -171,6 +171,28 @@ export default function DocumentsPage() {
     }
   };
 
+  const handleCancel = async (id: string, documentId: string) => {
+    patch(id, { status: 'error', error: 'Cancelling...', stage: 'CANCELLING' });
+    try {
+      await cancelDocument(documentId);
+      pollStatus(id, documentId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Cancel failed';
+      patch(id, { status: 'error', error: message });
+    }
+  };
+
+  const handleDelete = async (id: string, documentId: string) => {
+    patch(id, { status: 'processing', error: 'Deleting...', stage: 'DELETING' });
+    try {
+      await deleteDocument(documentId);
+      setFiles((prev) => prev.filter((f) => f.id !== id));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Delete failed';
+      patch(id, { status: 'error', error: message });
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
@@ -248,7 +270,13 @@ export default function DocumentsPage() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
               <p className="eyebrow">Queue</p>
               {files.map((file) => (
-                <DocumentRow key={file.id} file={file} onRetry={handleRetry} />
+                <DocumentRow 
+                  key={file.id} 
+                  file={file} 
+                  onRetry={handleRetry} 
+                  onCancel={handleCancel}
+                  onDelete={handleDelete}
+                />
               ))}
             </motion.div>
           )}
@@ -268,10 +296,24 @@ export default function DocumentsPage() {
   );
 }
 
-function DocumentRow({ file, onRetry }: { file: UploadedFile; onRetry: (id: string, docId: string) => void }) {
+function DocumentRow({ 
+  file, 
+  onRetry,
+  onCancel,
+  onDelete
+}: { 
+  file: UploadedFile; 
+  onRetry: (id: string, docId: string) => void;
+  onCancel: (id: string, docId: string) => void;
+  onDelete: (id: string, docId: string) => void;
+}) {
   const isError = file.status === 'error';
   const isComplete = file.status === 'complete';
+  const isActive = file.status === 'uploading' || file.status === 'processing';
   const activeStep = isComplete ? STAGES.length - 1 : stageIndex(file.stage || 'UPLOADED');
+
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
 
   const meta: string[] = [];
   if (file.pageCount != null) meta.push(`${file.pageCount} pages`);
@@ -290,32 +332,82 @@ function DocumentRow({ file, onRetry }: { file: UploadedFile; onRetry: (id: stri
           <p className="text-sm text-ink truncate">{file.name}</p>
           {file.documentId && <p className="font-mono text-[0.6rem] text-faint mt-0.5 truncate">id · {file.documentId}</p>}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={cn(
-            'font-mono text-[0.62rem] uppercase tracking-wider',
-            isComplete ? 'text-mint' : isError ? 'text-ember' : 'text-signal',
-          )}>
-            {isError ? 'Failed' : STAGE_LABELS[(file.stage || 'UPLOADED').toUpperCase()] || file.stage || 'Uploading'}
-          </span>
-          {file.status === 'uploading' || file.status === 'processing' ? (
-            <Loader2 className="w-4 h-4 text-signal animate-spin" />
-          ) : isComplete ? (
-            <CheckCircle2 className="w-4 h-4 text-mint" />
-          ) : (
-            <div className="flex items-center gap-1.5">
-              {file.documentId && (
+        {isConfirmingDelete ? (
+           <div className="flex items-center gap-2 shrink-0 bg-ember/10 p-1.5 rounded-md border border-ember/20">
+             <span className="text-[0.65rem] text-ember uppercase tracking-wide font-medium">Type DELETE</span>
+             <input 
+               type="text" 
+               className="w-16 bg-panel border border-ember/30 rounded px-1.5 py-0.5 text-xs text-ink outline-none"
+               value={deleteConfirmationText}
+               onChange={(e) => setDeleteConfirmationText(e.target.value)}
+               autoFocus
+             />
+             <button
+               onClick={() => { setDeleteConfirmationText(''); setIsConfirmingDelete(false); }}
+               className="text-xs text-muted hover:text-ink px-1"
+             >
+               Cancel
+             </button>
+             <button
+               disabled={deleteConfirmationText !== 'DELETE'}
+               onClick={() => {
+                 setIsConfirmingDelete(false);
+                 if (file.documentId) onDelete(file.id, file.documentId);
+               }}
+               className="text-xs bg-ember text-white px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               Confirm
+             </button>
+           </div>
+        ) : (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={cn(
+              'font-mono text-[0.62rem] uppercase tracking-wider',
+              isComplete ? 'text-mint' : isError ? 'text-ember' : 'text-signal',
+            )}>
+              {isError ? 'Failed' : STAGE_LABELS[(file.stage || 'UPLOADED').toUpperCase()] || file.stage || 'Uploading'}
+            </span>
+            {file.status === 'uploading' || file.status === 'processing' ? (
+              <Loader2 className="w-4 h-4 text-signal animate-spin" />
+            ) : isComplete ? (
+              <CheckCircle2 className="w-4 h-4 text-mint" />
+            ) : (
+              <div className="flex items-center gap-1.5">
+                {file.documentId && (
+                  <button
+                    onClick={() => onRetry(file.id, file.documentId!)}
+                    className="flex items-center justify-center p-1 rounded hover:bg-white/5 text-signal transition-colors group"
+                    title="Retry ingestion pipeline"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 group-active:-rotate-90 transition-transform" />
+                  </button>
+                )}
+                <AlertCircle className="w-4 h-4 text-ember" />
+              </div>
+            )}
+            
+            {file.documentId && (
+              <div className="flex items-center gap-1 border-l border-line ml-2 pl-2">
+                {isActive && (
+                  <button
+                    onClick={() => onCancel(file.id, file.documentId!)}
+                    className="p-1 rounded hover:bg-white/5 text-muted hover:text-ink transition-colors"
+                    title="Cancel upload"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
-                  onClick={() => onRetry(file.id, file.documentId!)}
-                  className="flex items-center justify-center p-1 rounded hover:bg-white/5 text-signal transition-colors group"
-                  title="Retry ingestion pipeline"
+                  onClick={() => setIsConfirmingDelete(true)}
+                  className="p-1 rounded hover:bg-white/5 text-muted hover:text-ember transition-colors"
+                  title="Delete document"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 group-active:-rotate-90 transition-transform" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
-              )}
-              <AlertCircle className="w-4 h-4 text-ember" />
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {!isError && (

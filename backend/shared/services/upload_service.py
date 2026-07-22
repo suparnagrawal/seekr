@@ -2,6 +2,9 @@ import uuid
 from fastapi import UploadFile, Depends
 from pathlib import Path
 from rq import Queue
+from rq.job import Job
+from rq.exceptions import NoSuchJobError
+from rq.command import send_stop_job_command
 import structlog
 
 from backend.shared.storage import StorageManager, storage_manager
@@ -17,6 +20,8 @@ from backend.shared.exceptions import (
     DuplicateResourceError,
     InfrastructureError
 )
+from sqlalchemy.exc import IntegrityError
+from backend.shared.models.document import DocumentStatus, GraphJobStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -75,8 +80,6 @@ class UploadService:
             raise DuplicateResourceError(f"Document with SHA256 {sha256} already exists.")
             
         # 6. Database Insert (Commit as UPLOADED)
-        from backend.shared.models.document import DocumentStatus
-        from sqlalchemy.exc import IntegrityError
         
         document = self.repo.create(
             id=document_id,
@@ -120,18 +123,7 @@ class UploadService:
         
         # 7. Redis Enqueue (Update to QUEUED on success)
         try:
-            job = self.queue.enqueue(
-                "backend.ingestion_worker.jobs.process_document_job",
-                kwargs={
-                    "document_id": str(document_id),
-                    "stored_path": stored_path,
-                    "ml_gateway_url": ml_gateway_url
-                },
-                job_id=f"ingest_{document_id}",
-                job_timeout=settings.RQ_DOC_PARSE_TIMEOUT,
-                retry=get_default_retry(),
-                result_ttl=86400 # Keep result for 24h
-            )
+            job_id = self._enqueue_document_job(document_id, stored_path, ml_gateway_url)
             
             self.repo.update_status(document_id, DocumentStatus.QUEUED.value)
             self.repo.db.commit()
@@ -140,12 +132,12 @@ class UploadService:
             logger.info(
                 "Document upload sequence completed successfully", 
                 document_id=str(document_id), 
-                job_id=job.id, 
+                job_id=job_id, 
                 status="QUEUED",
                 upload_duration_ms=int(time.time() * 1000), # placeholder for actual duration calculation
                 queue_wait_ms=0
             )
-            return document.id, job.id, document.status
+            return document.id, job_id, document.status
             
         except Exception as e:
             logger.error(
@@ -163,7 +155,6 @@ class UploadService:
         """
         Retries a failed upload by resetting its state and re-enqueueing the processing job.
         """
-        from backend.shared.models.document import DocumentStatus, GraphJobStatus
         
         doc = self.repo.get_by_id(document_id)
         if not doc:
@@ -178,19 +169,7 @@ class UploadService:
         stored_path = self.storage.get_artifact_uri(document_id, doc.stored_filename)
         
         try:
-            job = self.queue.enqueue(
-                "backend.fabric_api.dlq_recovery.enqueue_with_retry",
-                args=("backend.ingestion_worker.jobs.process_document_job",),
-                kwargs={
-                    "document_id": str(document_id),
-                    "stored_path": stored_path,
-                    "ml_gateway_url": ml_gateway_url
-                },
-                job_id=f"ingest_{document_id}",
-                job_timeout=settings.RQ_DOC_PARSE_TIMEOUT,
-                retry=get_default_retry(),
-                result_ttl=86400
-            )
+            job_id = self._enqueue_document_job(document_id, stored_path, ml_gateway_url)
             
             # Reset document state back to QUEUED
             doc.status = DocumentStatus.QUEUED.value
@@ -198,12 +177,66 @@ class UploadService:
             doc.error_message = None
             self.repo.db.commit()
             
-            logger.info("Document retry sequence initiated", document_id=str(document_id), job_id=job.id)
-            return doc.id, job.id, doc.status
+            logger.info("Document retry sequence initiated", document_id=str(document_id), job_id=job_id)
+            return doc.id, job_id, doc.status
             
         except Exception as e:
             logger.error("Failed to enqueue retry job", document_id=str(document_id), error=str(e), exc_info=True)
             raise InfrastructureError("Failed to enqueue retry job.", service="Redis")
+
+    def cancel_upload(self, document_id: str) -> None:
+        """
+        Cancels any running or queued jobs for a document and marks it as FAILED.
+        """
+        
+        doc = self.repo.get_by_id(document_id)
+        if not doc:
+            raise ValidationFailedError("Document not found.")
+            
+        # We allow cancelling if it's not already terminal
+        if doc.status in [DocumentStatus.COMPLETED.value, DocumentStatus.FAILED.value]:
+            raise ValidationFailedError(f"Cannot cancel document in {doc.status} state.")
+            
+        job_ids = [
+            f"ingest_{document_id}", 
+            f"embed_{document_id}", 
+            f"graph_{document_id}"
+        ]
+        
+        for jid in job_ids:
+            try:
+                # 1. Cancel in RQ (prevents it from starting if queued)
+                job = Job.fetch(jid, connection=self.queue.connection)
+                job.cancel()
+                # 2. Stop running job (kills the worker process if it's active)
+                try:
+                    send_stop_job_command(self.queue.connection, jid)
+                except Exception as e:
+                    logger.debug("Failed to send stop command", job_id=jid, error=str(e))
+            except NoSuchJobError:
+                pass
+                
+        # Update status to FAILED
+        self.repo.update_failure(document_id, "Cancelled by user", DocumentStatus.FAILED.value)
+        self.repo.db.commit()
+        
+        logger.info("Document cancellation sequence completed", document_id=str(document_id))
+
+    def _enqueue_document_job(self, document_id: uuid.UUID | str, stored_path: str, ml_gateway_url: str | None = None) -> str:
+        """Helper to enqueue the document processing job with uniform retry and timeout policies."""
+        job = self.queue.enqueue(
+            "backend.ingestion_worker.jobs.process_document_job",
+            kwargs={
+                "document_id": str(document_id),
+                "stored_path": stored_path,
+                "ml_gateway_url": ml_gateway_url
+            },
+            job_id=f"ingest_{document_id}",
+            job_timeout=settings.RQ_DOC_PARSE_TIMEOUT,
+            retry=get_default_retry(),
+            result_ttl=86400
+        )
+        return job.id
 
 def get_upload_service(
     repo: DocumentRepository = Depends(get_document_repository),

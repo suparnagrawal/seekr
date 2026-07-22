@@ -79,24 +79,26 @@ def process_document_job(document_id: str, stored_path: str, ml_gateway_url: str
                 "chunk_count": len(chunks)
             }
             
-        except IngestionPipelineError as e:
-            logger.error(
-                "Document parsing failed (Domain Error)", 
-                document_id=document_id, 
-                error=str(e),
-                exc_info=True
-            )
-            repo.update_failure(document_id, error_message=str(e), status=DocumentStatus.FAILED.value)
-            repo.db.commit()
-            raise e
         except Exception as e:
-            logger.error(
-                "Document ingestion failed (Unexpected)", 
-                document_id=document_id, 
-                exception_type=type(e).__name__,
-                error=str(e),
-                exc_info=True
-            )
+            if isinstance(e, IngestionPipelineError):
+                logger.error(
+                    "Document parsing failed (Domain Error)", 
+                    document_id=document_id, 
+                    error=str(e),
+                    exc_info=True
+                )
+            else:
+                logger.error(
+                    "Document ingestion failed (Unexpected)", 
+                    document_id=document_id, 
+                    exception_type=type(e).__name__,
+                    error=str(e),
+                    exc_info=True
+                )
+                
             repo.update_failure(document_id, error_message=str(e), status=DocumentStatus.FAILED.value)
             repo.db.commit()
+            
+            if isinstance(e, IngestionPipelineError):
+                raise e
             raise IngestionPipelineError(message=f"Unexpected error: {str(e)}", stage="Worker Execution") from e

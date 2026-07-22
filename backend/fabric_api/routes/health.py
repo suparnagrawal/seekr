@@ -14,6 +14,7 @@ from backend.shared.neo4j_client import get_neo4j
 from backend.shared.qdrant_client import get_qdrant
 from backend.shared.redis_client import get_redis
 from backend.shared.config import settings
+from backend.shared.constants import NGROK_HEADERS
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["Health"])
@@ -125,7 +126,7 @@ async def readiness_probe(
                 client = get_http_client()
                 resp = await client.get(
                     f"{settings.LLM_BASE_URL}/models",
-                    headers={"ngrok-skip-browser-warning": "1"}
+                    headers=NGROK_HEADERS
                 )
                 resp.raise_for_status()
                 services.ml_gateway = "ok"

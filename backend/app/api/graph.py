@@ -13,8 +13,13 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Query
 
 from backend.shared.neo4j_client import get_neo4j_async
-from backend.app.schemas.graph import GraphNode, GraphEdge, GraphResponse
+from backend.app.schemas.graph import (
+    GraphNode, GraphEdge, GraphResponse,
+    EntityFeedbackRequest, EntityFeedbackResponse,
+)
 from backend.app.agents.shared.logging import get_logger, log_error
+from backend.shared.security import require_role
+from fastapi import Depends
 
 router = APIRouter()
 logger = get_logger("api.graph")
@@ -159,3 +164,117 @@ async def get_graph(
         log_error(logger, str(exc), session_id=f"graph:{tag}", exc_info=True)
         # Fail soft: an unreachable graph store should not 500 the explorer.
         return GraphResponse(center=tag, nodes=[], edges=[])
+
+
+@router.post("/entities/{tag}/feedback", response_model=EntityFeedbackResponse, dependencies=[require_role("admin", "editor")])
+async def submit_entity_feedback(tag: str, request: EntityFeedbackRequest):
+    """
+    Submit a correction or feedback for a knowledge graph entity.
+
+    Updates the entity's description and/or type in Neo4j and records the
+    change in the audit log. This enables domain experts to refine the
+    automatically extracted knowledge graph — a key PS8 capability.
+    """
+    from backend.shared.exceptions import ResourceNotFoundError
+
+    driver = get_neo4j_async()
+    async with driver.session() as session:
+        # Fetch current state for audit trail
+        result = await session.run(
+            "MATCH (n:Entity {tag: $tag}) RETURN n.description AS desc, n.type AS type",
+            tag=tag,
+        )
+        record = await result.single()
+        if not record:
+            raise ResourceNotFoundError(f"Entity '{tag}' not found in the knowledge graph.")
+
+        prev_desc = record.get("desc")
+        prev_type = record.get("type")
+
+    # Build SET clause dynamically based on what's provided
+    set_clauses = []
+    params: Dict[str, Any] = {"tag": tag}
+
+    if request.description is not None:
+        set_clauses.append("n.description = $description")
+        params["description"] = request.description
+    if request.entity_type is not None:
+        set_clauses.append("n.type = $entity_type")
+        params["entity_type"] = request.entity_type
+
+    from backend.shared.database import pg_pool
+    from backend.shared.models.fact import Fact
+    import uuid
+    from datetime import datetime, timezone
+
+    async with pg_pool.connection() as conn:
+        async with conn.transaction():
+            new_facts = []
+            if request.description is not None:
+                new_id = str(uuid.uuid4())
+                new_facts.append({
+                    "id": new_id,
+                    "predicate": "has_description",
+                    "object_value": request.description
+                })
+            if request.entity_type is not None:
+                new_id = str(uuid.uuid4())
+                new_facts.append({
+                    "id": new_id,
+                    "predicate": "is_a",
+                    "object_value": request.entity_type
+                })
+                
+            for nf in new_facts:
+                # Mark existing active facts of this predicate as superseded
+                await conn.execute(
+                    """
+                    UPDATE facts 
+                    SET status = 'superseded', superseded_by = $1 
+                    WHERE subject_tag = $2 AND predicate = $3 AND status = 'active'
+                    """,
+                    nf["id"], tag, nf["predicate"]
+                )
+                
+                # Insert the new fact
+                await conn.execute(
+                    """
+                    INSERT INTO facts (id, subject_tag, predicate, object_value, extraction_method, status, created_at, confidence)
+                    VALUES ($1, $2, $3, $4, 'manual', 'active', $5, 1.0)
+                    """,
+                    nf["id"], tag, nf["predicate"], nf["object_value"], datetime.now(timezone.utc)
+                )
+
+            # Perform Neo4j Update inside the same logical block
+            if set_clauses:
+                set_clause = ", ".join(set_clauses)
+                async with driver.session() as session:
+                    async with session.begin_transaction() as tx:
+                        await tx.run(
+                            f"MATCH (n:Entity {{tag: $tag}}) SET {set_clause}",
+                            **params,
+                        )
+                        await tx.commit()
+
+    # Audit log
+    import asyncio
+    from backend.shared.audit import audit_log
+    asyncio.create_task(audit_log(
+        "entity_feedback", "entity",
+        resource_id=tag,
+        detail={
+            "previous_description": prev_desc,
+            "previous_type": prev_type,
+            "new_description": request.description,
+            "new_type": request.entity_type,
+            "correction_note": request.correction_note,
+        },
+    ))
+
+    return EntityFeedbackResponse(
+        tag=tag,
+        status="updated",
+        previous_description=prev_desc,
+        previous_type=prev_type,
+    )
+

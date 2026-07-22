@@ -1,3 +1,4 @@
+import uuid
 import structlog
 from rq import Queue
 from backend.shared.rq_policy import get_default_retry
@@ -21,6 +22,17 @@ class PipelineOrchestrator:
             self._queue = ingestion_queue
         return self._queue
         
+    def _enqueue_worker_job(self, function_path: str, job_prefix: str, timeout: int, document_id: str, ml_gateway_url: str | None) -> str:
+        job = self.queue.enqueue(
+            function_path,
+            kwargs={"document_id": document_id, "ml_gateway_url": ml_gateway_url},
+            job_id=f"{job_prefix}_{document_id}",
+            job_timeout=timeout,
+            retry=get_default_retry(),
+            result_ttl=86400
+        )
+        return job.id
+
     def enqueue_embedding(self, document_id: str | uuid.UUID, ml_gateway_url: str | None = None) -> str:
         """
         Enqueues the embedding generation job.
@@ -34,17 +46,15 @@ class PipelineOrchestrator:
         """
         document_id = str(document_id)
         
-        job = self.queue.enqueue(
-            "backend.fabric_api.dlq_recovery.enqueue_with_retry",
-            args=("backend.ingestion_worker.embedding_jobs.generate_embeddings_job",),
-            kwargs={"document_id": document_id, "ml_gateway_url": ml_gateway_url},
-            job_id=f"embed_{document_id}",
-            job_timeout=settings.RQ_EMBED_TIMEOUT,
-            retry=get_default_retry(),
-            result_ttl=86400
+        job_id = self._enqueue_worker_job(
+            "backend.ingestion_worker.embedding_jobs.process_embedding_job",
+            "embed",
+            settings.RQ_EMBED_TIMEOUT,
+            document_id,
+            ml_gateway_url
         )
-        logger.info("Enqueued embedding job via orchestrator", document_id=document_id, job_id=job.id)
-        return job.id
+        logger.info("Enqueued embedding job via orchestrator", document_id=document_id, job_id=job_id)
+        return job_id
 
     def enqueue_graph(self, document_id: str | uuid.UUID, ml_gateway_url: str | None = None) -> str | None:
         """
@@ -64,17 +74,15 @@ class PipelineOrchestrator:
         document_id = str(document_id)
         
         try:
-            job = self.queue.enqueue(
-                "backend.fabric_api.dlq_recovery.enqueue_with_retry",
-                args=("backend.ingestion_worker.graph_jobs.process_graph_job",),
-                kwargs={"document_id": document_id, "ml_gateway_url": ml_gateway_url},
-                job_id=f"graph_{document_id}",
-                job_timeout=settings.RQ_GRAPH_TIMEOUT,
-                retry=get_default_retry(),
-                result_ttl=86400
+            job_id = self._enqueue_worker_job(
+                "backend.ingestion_worker.graph_jobs.process_graph_job",
+                "graph",
+                settings.RQ_GRAPH_TIMEOUT,
+                document_id,
+                ml_gateway_url
             )
-            logger.info("Enqueued graph extraction job via orchestrator", document_id=document_id, job_id=job.id)
-            return job.id
+            logger.info("Enqueued graph extraction job via orchestrator", document_id=document_id, job_id=job_id)
+            return job_id
         except Exception as e:
             logger.error("Failed to enqueue graph job", document_id=document_id, error=str(e), exc_info=True)
             return None

@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     ENABLE_AUTH: Optional[bool] = None
     DEV_FALLBACK_ROLE: str = "viewer"
     
+    # Environment & Auth
+    ENVIRONMENT: str = "production"
+    ENABLE_AUTH: Optional[bool] = None
+    DEV_FALLBACK_ROLE: str = "viewer"
+    
+    @property
+    def auth_enabled(self) -> bool:
+        if self.ENABLE_AUTH is not None:
+            return self.ENABLE_AUTH
+        return self.ENVIRONMENT.lower() == "production"
+    
     # PostgreSQL Configuration
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"

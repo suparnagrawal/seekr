@@ -7,9 +7,10 @@ from backend.shared.exceptions import SeekrError
 from backend.fabric_api.lifespan import lifespan
 from backend.fabric_api.middleware import StructlogRequestMiddleware
 from backend.fabric_api.exception_handlers import seekr_error_handler, generic_exception_handler
-from backend.fabric_api.routes import health, upload
+from backend.fabric_api.routes import health, upload, metrics
 from backend.shared.constants import API_V1_PREFIX
 from backend.shared.security import verify_jwt
+from prometheus_fastapi_instrumentator import Instrumentator
 
 logger = structlog.get_logger(__name__)
 
@@ -33,11 +34,13 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    Instrumentator().instrument(app)
+
     # Register Exception Handlers
     app.add_exception_handler(SeekrError, seekr_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
 
-    # Health router is usually public
+    # Health is usually public
     app.include_router(health.router, prefix=API_V1_PREFIX)
     
     # Authentication is resolved centrally through verify_jwt (which handles
@@ -47,6 +50,7 @@ def create_app() -> FastAPI:
     auth_deps = [Depends(verify_jwt)]
     
     app.include_router(upload.router, prefix=API_V1_PREFIX, dependencies=auth_deps)
+    app.include_router(metrics.router, prefix=API_V1_PREFIX, dependencies=auth_deps)
     
     # Include P2/P3 application routers
     from backend.app.api import query, agents, graph

@@ -3,6 +3,7 @@ from typing import List
 
 from backend.shared.services.embedding_service.provider import EmbeddingProvider
 from backend.shared.exceptions import InfrastructureError
+from backend.shared.constants import NGROK_HEADERS
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = structlog.get_logger(__name__)
@@ -51,7 +52,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
-                        "ngrok-skip-browser-warning": "1"
+                        **NGROK_HEADERS
                     },
                     timeout=120.0 # High timeout per batch
                 )

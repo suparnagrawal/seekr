@@ -29,9 +29,10 @@ def process_embedding_job(document_id: str, ml_gateway_url: str | None = None) -
     with SessionLocal() as db:
         repo = DocumentRepository(db)
         
+        from backend.shared.constants import resolve_gateway_url
         target_embedding_url = settings.EMBEDDING_MODEL_ENDPOINT
         if ml_gateway_url:
-            target_embedding_url = ml_gateway_url.rstrip('/') + '/v1'
+            target_embedding_url = resolve_gateway_url(ml_gateway_url, '/v1')
             
         embedding_service = get_embedding_service(endpoint_override=target_embedding_url)
         qdrant_service = get_qdrant_service()
@@ -64,11 +65,8 @@ def process_embedding_job(document_id: str, ml_gateway_url: str | None = None) -
                     logger.info("Found existing chunks in Qdrant, resuming job", document_id=document_id, existing_count=len(existing_chunk_ids))
                 
                 # Resolve docling version once for the entire job
-                import importlib.metadata
-                try:
-                    docling_version = f"docling=={importlib.metadata.version('docling')}"
-                except importlib.metadata.PackageNotFoundError:
-                    docling_version = "docling==unknown"
+                from backend.shared.services.parsing_service import get_docling_version
+                docling_version = f"docling=={get_docling_version()}"
                     
                 # Mark as indexing immediately since we interleave it
                 repo.mark_indexing(document_id)
@@ -176,12 +174,13 @@ def process_embedding_job(document_id: str, ml_gateway_url: str | None = None) -
                 if chunks_path.exists():
                     os.remove(chunks_path)
             
-        except InfrastructureError as e:
-            repo.update_failure(document_id, error_message=str(e), status=DocumentStatus.FAILED.value)
-            repo.db.commit()
-            raise e
         except Exception as e:
-            logger.error("Embedding job failed", document_id=document_id, error=str(e), exc_info=True)
+            if not isinstance(e, InfrastructureError):
+                logger.error("Embedding job failed", document_id=document_id, error=str(e), exc_info=True)
+                
             repo.update_failure(document_id, error_message=str(e), status=DocumentStatus.FAILED.value)
             repo.db.commit()
+            
+            if isinstance(e, InfrastructureError):
+                raise e
             raise IngestionPipelineError(f"Embedding/Indexing failed: {str(e)}", stage="Embedding & Indexing") from e

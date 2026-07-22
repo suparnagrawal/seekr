@@ -8,6 +8,7 @@ from dataclasses import dataclass
 # at the module level for parts of the app that don't need it.
 
 from backend.shared.exceptions import IngestionPipelineError
+from backend.shared.constants import NGROK_HEADERS, resolve_gateway_url
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = structlog.get_logger(__name__)
@@ -99,7 +100,7 @@ class ParsingService:
             
             target_url = None
             if self.ml_gateway_url:
-                target_url = self.ml_gateway_url.rstrip('/') + '/parse'
+                target_url = resolve_gateway_url(self.ml_gateway_url, '/parse')
             elif settings.REMOTE_PARSER_URL:
                 target_url = settings.REMOTE_PARSER_URL
 
@@ -121,7 +122,7 @@ class ParsingService:
                         resp = httpx.post(
                             target_url,
                             files=files,
-                            headers={"ngrok-skip-browser-warning": "1"},
+                            headers=NGROK_HEADERS,
                             timeout=300.0
                         )
                     resp.raise_for_status()

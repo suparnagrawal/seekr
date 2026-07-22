@@ -168,7 +168,8 @@ def _window(items: List[str], size: int) -> List[List[str]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-async def _extract_window(chunk_texts: List[str], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract_window(chunks: List[Dict[str, Any]], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+    chunk_texts = [c["text"] for c in chunks]
     joined = "\n\n---\n\n".join(chunk_texts)
     messages = [
         {"role": "system", "content": _EXTRACTION_SYSTEM_PROMPT},
@@ -176,31 +177,47 @@ async def _extract_window(chunk_texts: List[str], ml_gateway_url: str | None = N
     ]
     logger.info("graph_extraction_window_llm_call", prompt_length=len(joined), chunks=len(chunk_texts))
     
-    target_base_url = None
-    if ml_gateway_url:
-        target_base_url = ml_gateway_url.rstrip('/') + '/v1'
+    from backend.shared.constants import resolve_gateway_url
+    target_base_url = resolve_gateway_url(ml_gateway_url, '/v1') if ml_gateway_url else None
         
     raw = await generate(
         messages,
         temperature=0.0,
         max_tokens=settings.LLM_MAX_TOKENS,
         response_format={"type": "json_object"},
-        base_url_override=target_base_url
+        base_url_override=target_base_url,
+        model=settings.FAST_MODEL
     )
-    return _parse_extraction(raw)
+    result = _parse_extraction(raw)
+    
+    # Attach provenance
+    for ent in result.get("entities", []):
+        name = ent.get("name") or ent.get("tag") or ""
+        for c in chunks:
+            if name and name.lower() in c.get("text", "").lower():
+                meta = c.get("metadata", {})
+                ent["source_passage"] = {"page": meta.get("page_numbers"), "bbox": meta.get("bbox")}
+                break
+                
+    for rel in result.get("relationships", []):
+        desc = rel.get("description") or ""
+        for c in chunks:
+            if desc and desc[:30].lower() in c.get("text", "").lower():
+                meta = c.get("metadata", {})
+                rel["source_passage"] = {"page": meta.get("page_numbers"), "bbox": meta.get("bbox")}
+                break
+                
+    return result
 
 
-async def _extract(chunk_texts: List[str], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
+async def _extract(chunks: List[Dict[str, Any]], ml_gateway_url: str | None = None) -> Dict[str, List[Dict[str, Any]]]:
     """Extract entities/relationships over the whole document via windowed,
     bounded-concurrency LLM calls, then merge the per-window results.
-
-    A single window failing is tolerated: its exception is logged and it
-    contributes nothing, rather than failing the whole document.
     """
-    windows = _window(chunk_texts, settings.GRAPH_EXTRACTION_WINDOW)
+    windows = _window(chunks, settings.GRAPH_EXTRACTION_WINDOW)
     semaphore = asyncio.Semaphore(max(1, settings.GRAPH_EXTRACTION_CONCURRENCY))
 
-    async def _guarded(win: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+    async def _guarded(win: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         async with semaphore:
             try:
                 return await _extract_window(win, ml_gateway_url)
@@ -237,10 +254,12 @@ def _merge_extractions(
 
             if key not in entities:
                 tag_alias[key] = raw_tag
-                entities[key] = {"tag": raw_tag, "name": name, "type": etype, "description": desc}
+                entities[key] = {"tag": raw_tag, "name": name, "type": etype, "description": desc, "source_passage": ent.get("source_passage")}
                 continue
 
             existing = entities[key]
+            if not existing.get("source_passage") and ent.get("source_passage"):
+                existing["source_passage"] = ent["source_passage"]
             if len(desc) > len(existing["description"]):
                 existing["description"] = desc
             # Prefer a non-default type if we only had the generic fallback.
@@ -276,12 +295,15 @@ def _merge_extractions(
                     "type": rel_type,
                     "confidence": confidence,
                     "description": desc,
+                    "source_passage": rel.get("source_passage")
                 }
             else:
                 existing = relationships[rkey]
                 existing["confidence"] = max(existing["confidence"], confidence)
                 if len(desc) > len(existing["description"]):
                     existing["description"] = desc
+                if not existing.get("source_passage") and rel.get("source_passage"):
+                    existing["source_passage"] = rel["source_passage"]
 
     return {
         "entities": list(entities.values()),
@@ -293,6 +315,7 @@ def _write_graph(
     entities: List[Dict[str, Any]],
     relationships: List[Dict[str, Any]],
     document_id: str,
+    repo: DocumentRepository,
 ) -> int:
     """Write validated entities/relationships to Neo4j. Returns nodes written.
 
@@ -313,6 +336,7 @@ def _write_graph(
                 "name": str(ent.get("name") or tag),
                 "type": _norm_node_type(ent.get("type")),
                 "description": str(ent.get("description") or ""),
+                "source_passage": ent.get("source_passage")
             }
         )
         valid_tags.add(tag)
@@ -339,6 +363,7 @@ def _write_graph(
                 "target": tgt,
                 "confidence": confidence,
                 "description": str(rel.get("description") or ""),
+                "source_passage": rel.get("source_passage"),
                 "fact_id": _fact_id(document_id, src, rel_type, tgt),
                 "source_doc_id": document_id,
             }
@@ -363,7 +388,7 @@ def _write_graph(
                     END
                 """,
                 nodes=node_batch,
-                model=settings.LLM_MODEL,
+                model=settings.FAST_MODEL,
             )
 
         for r_type, r_list in rels_by_type.items():
@@ -382,14 +407,57 @@ def _write_graph(
                         r.model_name = $model
                     """,
                     rels=rel_batch,
-                    model=settings.LLM_MODEL,
+                    model=settings.FAST_MODEL,
                 )
+
+    # Write Entities as Facts (type and description) and Relationships as Facts
+    try:
+        pg_session = repo.db
+        doc_uuid = uuid.UUID(document_id)
+        for node in valid_nodes:
+            if node.get("type"):
+                pg_session.merge(Fact(
+                    id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|is_a|{node['type']}"),
+                    subject_tag=node["tag"],
+                    predicate="is_a",
+                    object_value=node["type"],
+                    extraction_method="llm",
+                    source_doc_id=doc_uuid,
+                    source_passage=node.get("source_passage")
+                ))
+            if node.get("description"):
+                pg_session.merge(Fact(
+                    id=uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}|{node['tag']}|has_description|{hash(node['description'])}"),
+                    subject_tag=node["tag"],
+                    predicate="has_description",
+                    object_value=node["description"],
+                    extraction_method="llm",
+                    source_doc_id=doc_uuid,
+                    source_passage=node.get("source_passage")
+                ))
+        
+        for r_type, r_list in rels_by_type.items():
+            for rel in r_list:
+                pg_session.merge(Fact(
+                    id=uuid.UUID(rel["fact_id"]),
+                    subject_tag=rel["source"],
+                    predicate=r_type,
+                    object_tag=rel["target"],
+                    object_value=rel.get("description"),
+                    confidence=rel.get("confidence", 1.0),
+                    extraction_method="llm",
+                    source_doc_id=doc_uuid,
+                    source_passage=rel.get("source_passage")
+                ))
+            
+    except Exception as e:
+        logger.error("Failed to populate PostgreSQL Facts", error=str(e), exc_info=True)
 
     return len(valid_nodes)
 
 
-def _load_chunk_texts(document_id: str) -> List[str]:
-    """Read chunk texts from the document's NDJSON artifact, honoring an optional cap."""
+def _load_chunks(document_id: str) -> List[Dict[str, Any]]:
+    """Read chunks from the document's NDJSON artifact, honoring an optional cap."""
     artifact_uri = storage_manager.get_artifact_uri(document_id, "chunks.jsonl")
     try:
         temp_chunks_path = storage_manager.download_to_tempfile(artifact_uri)
@@ -402,7 +470,7 @@ def _load_chunk_texts(document_id: str) -> List[str]:
         return []
         
     cap = settings.GRAPH_EXTRACTION_MAX_CHUNKS
-    texts: List[str] = []
+    chunks: List[Dict[str, Any]] = []
     
     try:
         with chunks_path.open("r", encoding="utf-8") as f:
@@ -411,14 +479,14 @@ def _load_chunk_texts(document_id: str) -> List[str]:
                     continue
                 c = json.loads(line)
                 if c.get("text"):
-                    texts.append(c["text"])
-                if cap and cap > 0 and len(texts) >= cap:
+                    chunks.append(c)
+                if cap and cap > 0 and len(chunks) >= cap:
                     break
     finally:
         if chunks_path.exists():
             os.remove(chunks_path)
             
-    return texts
+    return chunks
 
 
 def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Dict[str, Any]:
@@ -429,64 +497,59 @@ def process_graph_job(document_id: str, ml_gateway_url: str | None = None) -> Di
     over the whole document (windowed), and writes them to Neo4j. Participates
     in the document status state machine on every exit path.
     """
-    if not settings.GRAPH_EXTRACTION_ENABLED:
-        logger.info("graph_extraction_disabled", document_id=document_id)
-        with SessionLocal() as db:
-            repo = DocumentRepository(db)
+    with SessionLocal() as db:
+        repo = DocumentRepository(db)
+        
+        if not settings.GRAPH_EXTRACTION_ENABLED:
+            logger.info("graph_extraction_disabled", document_id=document_id)
             repo.mark_graph_skipped(document_id)
             repo.db.commit()
-        return {"status": "skipped", "document_id": document_id}
+            return {"status": "skipped", "document_id": document_id}
 
-    logger.info("Starting graph extraction job", document_id=document_id)
+        logger.info("Starting graph extraction job", document_id=document_id)
 
-    try:
-        texts = _load_chunk_texts(document_id)
-        if not texts:
-            logger.warning("no_chunks_for_graph_extraction", document_id=document_id)
-            with SessionLocal() as db:
-                repo = DocumentRepository(db)
+        try:
+            chunks = _load_chunks(document_id)
+            if not chunks:
+                logger.warning("no_chunks_for_graph_extraction", document_id=document_id)
                 repo.mark_graph_skipped(document_id)
                 repo.db.commit()
-            return {"status": "skipped", "reason": "no chunks", "document_id": document_id}
+                return {"status": "skipped", "reason": "no chunks", "document_id": document_id}
 
-        _bootstrap_constraint()
-        extraction = asyncio.run(_extract(texts, ml_gateway_url))
-        nodes_written = _write_graph(
-            extraction["entities"], extraction["relationships"], document_id
-        )
+            _bootstrap_constraint()
+            extraction = asyncio.run(_extract(chunks, ml_gateway_url))
+            nodes_written = _write_graph(
+                extraction["entities"], extraction["relationships"], document_id, repo
+            )
 
-        with SessionLocal() as db:
-            repo = DocumentRepository(db)
             repo.mark_graph_built(document_id, datetime.now(timezone.utc))
             repo.db.commit()
 
-        logger.info(
-            "Graph extraction completed",
-            document_id=document_id,
-            chunks_used=len(texts),
-            windows=len(_window(texts, settings.GRAPH_EXTRACTION_WINDOW)),
-            entities=len(extraction["entities"]),
-            relationships=len(extraction["relationships"]),
-            nodes_written=nodes_written,
-        )
-        return {
-            "status": "success",
-            "document_id": document_id,
-            "nodes": nodes_written,
-            "relationships": len(extraction["relationships"]),
-        }
+            logger.info(
+                "Graph extraction completed",
+                document_id=document_id,
+                chunks_used=len(chunks),
+                windows=len(_window(chunks, settings.GRAPH_EXTRACTION_WINDOW)),
+                entities=len(extraction["entities"]),
+                relationships=len(extraction["relationships"]),
+                nodes_written=nodes_written,
+            )
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "nodes": nodes_written,
+                "relationships": len(extraction["relationships"]),
+            }
 
-    except Exception as exc:
-        logger.error("Graph extraction failed", document_id=document_id, error=str(exc), exc_info=True)
-        with SessionLocal() as db:
-            repo = DocumentRepository(db)
+        except Exception as exc:
+            logger.error("Graph extraction failed", document_id=document_id, error=str(exc), exc_info=True)
             repo.mark_graph_failed(document_id)
             repo.db.commit()
 
-        # Re-raise so RQ registers the job as failed and the DLQ Auto-Recovery
-        # Daemon can requeue it when the ML Gateway comes back online.
-        from backend.shared.exceptions import IngestionPipelineError
+            # Re-raise so RQ registers the job as failed and the DLQ Auto-Recovery
+            # Daemon can requeue it when the ML Gateway comes back online.
+            from backend.shared.exceptions import IngestionPipelineError
 
-        raise IngestionPipelineError(
-            f"Graph Extraction failed: {str(exc)}", stage="Graph Extraction"
-        ) from exc
+            raise IngestionPipelineError(
+                f"Graph Extraction failed: {str(exc)}", stage="Graph Extraction"
+            ) from exc

@@ -7,7 +7,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-
 class FallbackEmbeddingProvider(EmbeddingProvider):
     """Wraps a primary (remote) embedding provider with a local CPU fallback.
 
@@ -72,4 +71,3 @@ def get_embedding_service(endpoint_override: str | None = None) -> EmbeddingProv
     # 3. Default Local CPU Fallback
     logger.info("Using local FastEmbed for embeddings", model=settings.EMBEDDING_MODEL)
     return local_fallback
-

@@ -68,7 +68,7 @@ async def route(escalation: EscalationContext) -> WorkerType:
     ]
     
     try:
-        raw = await generate(messages, temperature=0.1, max_tokens=128)
+        raw = await generate(messages, temperature=0.1, max_tokens=128, model=settings.FAST_MODEL)
         
         match = re.search(r'\{.*\}', raw.strip(), re.DOTALL)
         json_str = match.group(0) if match else raw.strip()

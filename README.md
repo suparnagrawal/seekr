@@ -9,14 +9,14 @@
 ![Neo4j](https://img.shields.io/badge/Neo4j-Graph-4581c3.svg)
 ![Qdrant](https://img.shields.io/badge/Qdrant-Vector-ff5252.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)
 
 # Seekr
 
-> **AI Operating System for Industrial Knowledge**
+> **AI-Powered Industrial Knowledge Intelligence Platform**
 
-Turn scattered industrial documents into a searchable knowledge graph and talk to them using a multi-agent AI copilot with complete citations.
-
-**AMD Developer Hackathon 2026 – Unicorn Track**
+**ET AI Hackathon 2026 — Problem Statement 8**
+*AI for Industrial Knowledge Intelligence: Unified Asset & Operations Brain*
 
 **Live Demo:** [https://seekr-search-ai.vercel.app](https://seekr-search-ai.vercel.app)
 
@@ -24,52 +24,31 @@ Turn scattered industrial documents into a searchable knowledge graph and talk t
 
 ---
 
-## Why Seekr?
+## The Problem
 
-Traditional RAG retrieves text.
-**Seekr retrieves knowledge.**
+Industrial organizations drown in scattered technical documents — spec sheets, maintenance logs, compliance standards, P&IDs. Critical knowledge is trapped in PDFs, siloed across departments, and lost when experienced engineers retire.
 
-We combine:
-- **Knowledge Graphs**
-- **Hybrid Retrieval**
-- **Multi-Agent Reasoning**
+**No single document contains the full picture.** Finding the answer requires connecting facts across dozens of sources — a task that takes human experts hours and still misses critical links.
 
-To answer complex questions that no single document contains.
+## Our Solution
 
----
+**Seekr** turns scattered industrial documents into a unified, searchable knowledge graph and talks to them using a multi-agent AI copilot with verifiable citations.
 
-## Features
-
-- **Layout-aware PDF parsing**
-- **Hybrid Retrieval** (Dense + Graph + Lexical exact-match pathway)
-- **Metadata-Aware Reranking** to surface primary sources over secondary references
-- **Knowledge Graph Construction** with open, domain-adaptive entity/relationship extraction
-- **Multi-Agent Reasoning** (LangGraph Supervisor with specialist workers)
-- **Streaming Responses** (Robust SSE with agent tracing, reasoning, and tool executions)
-- **Source Citations**
-- **Industrial Knowledge Graph**
-- **Self-Healing Queue** with automatic Dead Letter Queue recovery
-- **Resumable, Idempotent Ingestion** (embedding jobs recover cleanly from partial failure)
-- **S3-Compatible Object Storage** with local-disk fallback for development
-- **Production-Ready Backend** (Hardened with session continuity, async graceful shutdown, and container healthchecks)
+Unlike basic RAG systems that retrieve text, **Seekr retrieves knowledge** — connecting facts across documents that no individual search could surface alone.
 
 ---
 
-## High-Speed Inference & Flexible ML Architecture
+## Key Differentiators
 
-Embedding, chunking, parsing, generation, and retrieval-time reasoning are cleanly decoupled. Seekr delegates heavy multi-agent reasoning to high-speed cloud inference providers (like **Groq**) to eliminate network tunnel latency, while keeping document parsing and embeddings flexible (running locally or via dedicated microservices).
-
-| Task | Technology |
-|------|------------|
-| **LLM Inference** | Groq / OpenAI Compatible API |
-| **OCR / Parsing** | IBM Docling |
-| **Embeddings** | FastEmbed |
-| **API Boundary** | Standardized OpenAI Interface |
-
-**Why this matters:**
-- **Zero code changes** required to switch between local vLLM, Groq, Fireworks, or OpenAI.
-- **Eliminates TCP/ngrok bottlenecks**, allowing the LangGraph agents to reason and stream at maximum token-per-second limits.
-- **Robust Ingestion:** The background recovery daemon polls endpoints and automatically requeues any ingestion jobs from the Redis Dead Letter Queue if network interruptions occur.
+| Capability | What Seekr Does | Why It Matters |
+|-----------|----------------|----------------|
+| **Knowledge Graph Construction** | Automatically extracts entities, relationships, and specs from uploaded documents into Neo4j | Builds a connected industrial brain, not just a document index |
+| **Hybrid Retrieval (RRF + Reranking)** | Combines dense vector search, graph traversal, and lexical matching with metadata-aware reranking | Surfaces the most relevant context regardless of query type |
+| **Adaptive Graph Traversal** | Level-synchronous, best-first expansion with batched Neo4j queries and configurable decay/pruning | O(depth) round-trips instead of O(nodes) — scales to production graph sizes |
+| **Multi-Agent Reasoning** | LangGraph Supervisor routes to specialist workers (Asset, Diagnose, Comply) | Deep domain reasoning without prompt bloat |
+| **Self-Healing Ingestion** | DLQ recovery daemon + exponential backoff automatically requeues failed jobs | Zero manual intervention when LLM gateways go down |
+| **Verifiable Citations** | Every answer cites specific documents, pages, and sections | Auditable answers that engineers can trust |
+| **Audit Trail** | Every query and agent invocation is logged for compliance | Complete accountability for industrial decision-making |
 
 ---
 
@@ -84,20 +63,16 @@ Embedding, chunking, parsing, generation, and retrieval-time reasoning are clean
                ↓
      Hybrid Retrieval Engine (RRF + Reranking)
                ↓
-   Multi-Agent Reasoning (P3)
+   Multi-Agent Reasoning (LangGraph)
                ↓
  +-----------------------------------+
- | Qdrant | Neo4j | Postgres | S3 |
+ | Qdrant | Neo4j | Postgres | S3    |
  +-----------------------------------+
                ↓
     Groq / Cloud LLM (High-Speed Inference)
 ```
 
----
-
-## Data Flow Diagrams
-
-### 1. File Upload to Graph Generation (Ingestion)
+### Ingestion Pipeline
 
 ```mermaid
 graph TD
@@ -105,7 +80,7 @@ graph TD
     B -->|Uploads Artifact| C[(S3 / Object Storage)]
     B -->|Enqueues Job| D[Redis / RQ]
     D -->|Pops Job| E(Ingestion Worker)
-    E -->|1. Parse Document| F[IBM Docling / AMD]
+    E -->|1. Parse Document| F[IBM Docling]
     F -->|Parsed Content| E
     E -->|2. Generate Embeddings| G[FastEmbed]
     G -->|Embeddings, Resumable| E
@@ -114,17 +89,17 @@ graph TD
     E -->|Store Nodes/Edges, Batched| I[(Neo4j)]
     E -->|Store Embeddings| J[(Qdrant)]
     E -->|Update Metadata| K[(PostgreSQL)]
-    D -.->|On AMD Gateway Downtime| L(DLQ Recovery Daemon)
+    D -.->|On Gateway Downtime| L(DLQ Recovery Daemon)
     L -.->|Auto-Requeues Failed Jobs| D
 ```
 
-### 2. Query Retrieval Pipeline
+### Query Retrieval Pipeline
 
 ```mermaid
 graph TD
     A[User / Frontend] -->|Asks Question| B(FastAPI Gateway)
     B -->|Query| C(Multi-Agent System)
-    C -->|Generate Embedding| D[FastEmbed / AMD]
+    C -->|Generate Embedding| D[FastEmbed]
     C -->|Vector Search| E[(Qdrant)]
     C -->|Graph Traversal| F[(Neo4j)]
     E -->|Vector Results| G(Hybrid Retrieval Engine)
@@ -138,141 +113,142 @@ graph TD
 
 ---
 
-## Demo Flow
+## Features
 
-**Upload PDF** ➔ **Graph Builds** ➔ **Ask Question** ➔ **Get Cited Answer** ➔ **Explore Graph**
+- **Layout-aware PDF Parsing** — IBM Docling extracts text, tables, and headings with structural awareness
+- **Hybrid Retrieval** — Dense + Graph + Lexical pathways with Reciprocal Rank Fusion
+- **Metadata-Aware Reranking** — Surfaces primary sources over secondary references using structural signals
+- **Knowledge Graph Construction** — Open, domain-adaptive entity/relationship extraction into Neo4j
+- **Multi-Agent Reasoning** — LangGraph Supervisor with specialist workers (Asset, Diagnose, Comply)
+- **Streaming Responses** — Robust SSE with agent tracing, reasoning steps, and tool executions
+- **Source Citations** — Every answer includes verifiable document citations with page numbers
+- **Self-Healing Queue** — Automatic Dead Letter Queue recovery with exponential backoff
+- **Resumable Ingestion** — Embedding jobs recover cleanly from partial failure
+- **S3-Compatible Storage** — Production object storage with local-disk fallback for development
+- **Audit Trail** — Compliance-ready logging of all queries and agent invocations
+- **Docker Deployment** — Full `docker compose up` from clean clone
 
 ---
 
 ## Tech Stack
 
-| Layer      | Tech            |
-| ---------- | --------------- |
-| **Frontend**   | Next.js 16      |
-| **Backend**    | FastAPI         |
-| **Vector DB**  | Qdrant          |
-| **Graph DB**   | Neo4j           |
-| **Metadata**   | PostgreSQL      |
+| Layer          | Technology         |
+| -------------- | ------------------ |
+| **Frontend**   | Next.js 16, React, TypeScript |
+| **Backend**    | FastAPI, Python 3.11+ |
+| **Vector DB**  | Qdrant             |
+| **Graph DB**   | Neo4j              |
+| **Metadata**   | PostgreSQL 15      |
 | **Object Storage** | S3-Compatible (boto3) |
 | **Queue**      | Redis + RQ (with DLQ recovery) |
-| **AI Compute** | Groq / Any OpenAI-Compatible API |
-| **OCR**        | IBM Docling     |
-| **Embeddings** | FastEmbed       |
+| **AI Inference** | Groq / Any OpenAI-Compatible API |
+| **Parsing**    | IBM Docling        |
+| **Embeddings** | FastEmbed (BAAI/bge-base-en-v1.5) |
+| **Agents**     | LangGraph          |
+| **Deployment** | Docker, Render, Vercel |
 
 ---
 
 ## Repository Structure
 
-Judges, start here to navigate the codebase:
-
 ```text
 seekr/
 ├── backend/
+│   ├── fabric_api/        # FastAPI application layer + DLQ Recovery
 │   ├── ingestion_worker/  # P1: Parsing, embedding, and KG extraction
-│   ├── app/retrieval/     # P2: Hybrid Retrieval (Dense, Lexical, Graph) + Reranking
-│   ├── app/agents/        # P3: LangGraph Multi-Agent System
-│   ├── shared/            # Config, DB clients, JWT verification, object storage
-│   └── fabric_api/        # FastAPI Application Layer + DLQ Recovery Daemon
-├── frontend/              # Next.js User Interface
-├── scripts/                # Deployment and utility scripts
-├── *.ipynb                # AMD AI Notebooks for the unified ML gateway
-├── docs/                  # Architecture & Design Specs
-└── docker-compose.yml     # Local Infrastructure
+│   ├── app/
+│   │   ├── retrieval/     # P2: Hybrid Retrieval (Dense, Lexical, Graph) + Reranking
+│   │   ├── agents/        # P3: LangGraph Multi-Agent System
+│   │   ├── api/           # API route handlers
+│   │   └── schemas/       # Pydantic request/response models
+│   └── shared/            # Config, DB clients, security, storage, audit
+├── frontend/              # Next.js UI (graph explorer, copilot, entity pages)
+├── scripts/               # Deployment and utility scripts
+└── docker-compose.yml     # Full application stack
 ```
 
 ### Where to Look
-- **`backend/ingestion_worker`** → Knowledge Graph Construction
-- **`backend/app/retrieval`** → Hybrid Retrieval Engine, RRF Fusion, and Reranking
-- **`backend/app/agents`** → LangGraph Multi-Agent System
+- **`backend/app/retrieval/`** → Hybrid Retrieval Engine, RRF Fusion, and Reranking
+- **`backend/app/agents/`** → LangGraph Multi-Agent System (Supervisor → Workers)
+- **`backend/ingestion_worker/`** → Knowledge Graph Construction Pipeline
 - **`backend/fabric_api/dlq_recovery.py`** → Self-Healing Queue Recovery
+- **`backend/shared/audit.py`** → Compliance Audit Trail
 
 ---
 
-## Setup Instructions
+## Quick Start
 
 ### Prerequisites
-- Python 3.11+
-- Node.js 20+
 - Docker & Docker Compose
-- AMD AI Notebook
+- Node.js 20+
+- Python 3.11+ with [uv](https://github.com/astral-sh/uv)
 
-### 1. AMD Notebook Setup
-Upload `seekr_unified_notebook.ipynb` to the AMD AI Notebooks platform. Run the cells to expose the unified ML gateway endpoints via Ngrok. 
+### Option 1: Docker (Full Stack)
 
-### 2. Infrastructure (Docker)
 ```bash
+# Clone and start everything
+git clone https://github.com/suparnagrawal/seekr.git
+cd seekr
+cp backend/.env.example backend/.env  # Configure your API keys
 docker compose up -d
 ```
 
-### 3. Backend Setup
+Visit `http://localhost:3000` to access Seekr.
+
+### Option 2: Local Development
+
 ```bash
+# 1. Infrastructure
+docker compose up postgres redis qdrant neo4j -d
+
+# 2. Backend
 cd backend
-cp .env.example .env
-uv venv
-source .venv/bin/activate
+cp .env.example .env       # Configure your API keys
+uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 alembic upgrade head
 uv run uvicorn backend.fabric_api.main:app --reload --port 8000
-```
 
-### 4. Ingestion Worker
-*(In a separate terminal)*
-```bash
+# 3. Ingestion Worker (separate terminal)
 cd backend
+source .venv/bin/activate
 uv run python -m backend.ingestion_worker.main
-```
 
-### 5. Frontend Setup
-```bash
+# 4. Frontend (separate terminal)
 cd frontend
 cp .env.example .env
-npm install
-npm run dev
+npm install && npm run dev
 ```
 
 ---
 
 ## Environment Variables
 
-**Backend (`backend/.env`)**
-| Variable | Description |
-|----------|-------------|
-| `CORS_ORIGINS` | Comma-separated list of allowed frontend origins for CORS |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `DEBUG` | Enable debug mode (`true`/`false`) |
-| `EMBEDDING_MODEL` | Embedding model name |
-| `EMBEDDING_MODEL_ENDPOINT` | Embedding model API endpoint | (AMD AI Notebook tunneled via ngrok)
-| `FAST_MODEL` | Lightweight LLM used for fast responses |
-| `FAST_MODEL_API_KEY` | API key for the fast LLM |
-| `FAST_MODEL_BASE_URL` | Base URL of the fast LLM provider | (e.g. Groq, Fireworks, OpenAI)
-| `LLM_API_KEY` | API key for the primary LLM |
-| `LLM_BASE_URL` | Base URL of the primary LLM provider | (e.g. Groq, Fireworks, OpenAI)
-| `LLM_MODEL` | Primary LLM model name | 
-| `NEO4J_PASSWORD` | Neo4j database password |
-| `NEO4J_URI` | Graph database connection URI |
-| `NEO4J_USER` | Neo4j database username |
-| `PROJECT_NAME` | Application name |
-| `QDRANT_API_KEY` | Qdrant Cloud API key (optional for local instances) |
-| `QDRANT_COLLECTION` | Qdrant collection name |
-| `QDRANT_URL` | Qdrant server URL |
-| `REDIS_URL` | Redis connection URL |
-| `REMOTE_PARSER_URL` | Remote Docling parser endpoint | (Optional, for delegated extraction)
-| `S3_ACCESS_KEY_ID` | S3-compatible storage access key |
-| `S3_BUCKET_NAME` | S3 bucket name |
-| `S3_ENDPOINT_URL` | S3-compatible storage endpoint |
-| `S3_REGION` | S3 bucket region |
-| `S3_SECRET_ACCESS_KEY` | S3-compatible storage secret key |
+### Backend (`backend/.env`)
 
-**Frontend (`frontend/.env`)**
 | Variable | Description |
 |----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Base URL of the backend API |
+| `CORS_ORIGINS` | Comma-separated list of allowed frontend origins |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection URL |
+| `NEO4J_URI` | Graph database connection URI |
+| `NEO4J_USER` / `NEO4J_PASSWORD` | Neo4j credentials |
+| `QDRANT_URL` | Qdrant server URL |
+| `QDRANT_COLLECTION` | Qdrant collection name |
+| `LLM_API_KEY` | API key for the primary LLM |
+| `LLM_BASE_URL` | Base URL of the LLM provider (Groq, OpenAI, etc.) |
+| `LLM_MODEL` | Primary LLM model name |
+| `FAST_MODEL` / `FAST_MODEL_API_KEY` / `FAST_MODEL_BASE_URL` | Lightweight classifier model |
+| `EMBEDDING_MODEL` | Embedding model (default: BAAI/bge-base-en-v1.5) |
+| `S3_*` | S3-compatible storage configuration |
+
+### Frontend (`frontend/.env`)
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Backend API base URL |
 | `NEXT_PUBLIC_API_PREFIX` | Versioned API path prefix |
-| `NEXT_PUBLIC_APP_NAME` | Application name displayed in the UI |
-| `NEXT_PUBLIC_DEFAULT_ENTITY` | Default entity shown in the knowledge graph |
-| `NEXT_PUBLIC_DEFAULT_GRAPH_DEPTH` | Default graph traversal depth (number of hops) |
-| `NEXT_PUBLIC_MAX_UPLOAD_MB` | Maximum file upload size (MB) |
-| `NEXT_PUBLIC_REQUEST_TIMEOUT_MS` | Timeout for non-streaming API requests (ms) |
+| `NEXT_PUBLIC_APP_NAME` | Application name in the UI |
 
 ---
 
@@ -283,20 +259,25 @@ npm run dev
 | **Frontend** | Vercel |
 | **Backend API** | Render |
 | **LLM Inference** | Groq Cloud API |
-| **ML Gateway (Parsing & Embeds)** | Render / Local Container |
 | **Vector DB** | Qdrant Cloud |
 | **Graph DB** | Neo4j AuraDB |
 | **Relational DB** | Neon Postgres |
-| **Cache** | Redis |
-| **Object Storage** | Supabase S3-Compatible Storage |
+| **Cache** | Upstash Redis |
+| **Object Storage** | Supabase S3-Compatible |
 
 ---
 
-## Roadmap
+## Demo Flow
 
-- [ ] Kafka Integration for high-throughput ingestion
-- [ ] Comprehensive Observability (Prometheus + OpenTelemetry)
-- [ ] Fine-grained Server-side RBAC
-- [ ] P&ID Vision (Piping and Instrumentation Diagrams)
-- [ ] Industrial Vision-Language Models (VLM)
-- [ ] Advanced Graph Analytics
+1. **Upload PDF** → Industrial spec sheet, maintenance log, or compliance document
+2. **Graph Builds** → Entities and relationships are automatically extracted
+3. **Ask Question** → Natural language query about your documents
+4. **Get Cited Answer** → AI response with verifiable source citations
+5. **Explore Graph** → Interactive knowledge graph visualization
+6. **Agent Deep-Dive** → Specialist agents for asset analysis, diagnostics, and compliance
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE)

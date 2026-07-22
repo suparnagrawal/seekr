@@ -15,6 +15,7 @@ COMPLY_SYSTEM_PROMPT = (
     "- Use the provided context to answer the user's question.\n"
     "- If the provided context is insufficient, state what information is missing.\n"
     "- Always cite your sources using the [doc_id:passage_id] format.\n"
+    "- Output a curated checklist of applicable regulations alongside your analysis.\n"
     "- Provide clear, authoritative, and professional answers.\n"
 )
 
